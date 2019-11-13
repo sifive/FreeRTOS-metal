@@ -97,33 +97,6 @@ union portRISCV_CONTEXT {
     } named;
 };
 
-/* sanity check C vrs Assembler offsets */
-
-/* did we pick the correct register size */
-_Static_assert( sizeof(uintptr_t) == PORT_REGISTER_SIZEOF, "register size seems wrong" );
-
-/* are x register offsets correct? */
-_Static_assert( offsetof( union portRISCV_CONTEXT, named.x[0]) == PORT_CONTEXT_xOFFSET(0), "x0 offset is wrong" );
-_Static_assert( offsetof( union portRISCV_CONTEXT, named.x[31]) == PORT_CONTEXT_xOFFSET(31), "x31 offset is wrong" );
-
-/* named registers also? */
-_Static_assert( offsetof( union portRISCV_CONTEXT, named.mepc) == PORT_CONTEXT_mepcOFFSET, "mepc offset wrong" );
-_Static_assert( offsetof( union portRISCV_CONTEXT, named.mcause) == PORT_CONTEXT_mcauseOFFSET, "mcause offset wrong" );
-_Static_assert( offsetof( union portRISCV_CONTEXT, named.mstatus) == PORT_CONTEXT_mstatusOFFSET, "mstatus offset wrong" );
-/* we do not check the padding */
-#if PORT_CONTEXT_EXTRA_REGS > 0
-_Static_assert( offsetof( union portRISCV_CONTEXT, named.extra[0]) == PORT_CONTEXT_extraOFFSET(0), "exra0 offset is wrong" );
-_Static_assert( offsetof( union portRISCV_CONTEXT, named.extra[portADDITIONAL_CONTEXT_REGS-1]) == PORT_CONTEXT_extraOFFSET(portADDITIONAL_CONTEXT_REGS-1), "exraN offset is wrong" );
-#endif
-
-_Static_assert( sizeof(union portRISCV_CONTEXT) == (PORT_REGISTER_SIZEOF * PORT_CONTEXT_lastIDX), "total context size is wrong");
-/* The ABI states the STACK must be aligned on 16byte boundaries
- * Since this element lives on the stack, it too must be aligned in size
- * Reference: https://riscv.org/wp-content/uploads/2015/01/riscv-calling.pdf
- * Section 18.2.
- */
-_Static_assert( (sizeof(union portRISCV_CONTEXT) & 0x0f) == 0, "context must be a multiple of 16bytes");
-
 /* this is the common raw assembler trap handler code */
 void freertos_risc_v_trap_handler(void);
 
