@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 #
 #
 
-FREERTOS_DIR=$(dir $(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST)))/FreeRTOS-Kernel
+FREERTOS_DIR=$(dir $(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST)))FreeRTOS-Kernel
 FREERTOS_MEMMANG_DIR =${FREERTOS_DIR}/portable/MemMang
 
 # ----------------------------------------------------------------------
