@@ -78,7 +78,6 @@
 
 #include "freertos_risc_v_chip_specific_extensions.h"
 
-
 /* integer registers */
 #define portWORD_SIZE        (__riscv_xlen / 8)
 
@@ -577,7 +576,11 @@ first_task_timer_loop:
 
 /**
  * StackType_t *pxPortInitialiseStack( StackType_t *pxTopOfStack, TaskFunction_t pxCode, void *pvParameters )
+ * StackType_t *pxPortInitialiseStack( StackType_t *pxTopOfStack, TaskFunction_t pxCode, void *pvParameters, BaseType_t xRunPrivileged ) PRIVILEGED_FUNCTION
  **/
+#if( portUSING_MPU_WRAPPERS == 1 )
+.section .privileged_functions
+#endif
 .align 8
 .func
 pxPortInitialiseStack:
@@ -600,7 +603,15 @@ pxPortInitialiseStack:
 	not t2, t1
 	and t0, t0, t2
 	/* Generate the value 0x1880, which are the MPIE and MPP bits to set in mstatus. */
+#if( portUSING_MPU_WRAPPERS == 1 )
+	mv t1, x0
+	beqz a3, 1f
+	addi t1, t1, 0x180
+1:	
+	ori t1, t1, 0x8
+#else
 	addi t1, x0, 0x188
+#endif
 	slli t1, t1, 4
 	/* Set MPIE and MPP bits in mstatus value. */
 	or t0, t0, t1

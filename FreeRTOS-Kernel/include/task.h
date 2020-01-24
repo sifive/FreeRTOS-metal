@@ -126,9 +126,11 @@ typedef struct xTASK_PARAMETERS
 	void *pvParameters;
 	UBaseType_t uxPriority;
 	StackType_t *puxStackBuffer;
-	MemoryRegion_t xRegions[ portNUM_CONFIGURABLE_REGIONS ];
-	#if ( ( portUSING_MPU_WRAPPERS == 1 ) && ( configSUPPORT_STATIC_ALLOCATION == 1 ) )
+	#if ( portUSING_MPU_WRAPPERS == 1 )
+		MemoryRegion_t xRegions[ portNUM_CONFIGURABLE_REGIONS ];
+	#if ( configSUPPORT_STATIC_ALLOCATION == 1 )
 		StaticTask_t * const pxTaskBuffer;
+	#endif
 	#endif
 } TaskParameters_t;
 

@@ -59,7 +59,6 @@ extern "C" {
 	#error Assembler did not define __riscv_xlen
 #endif
 
-
 typedef portSTACK_TYPE StackType_t;
 typedef portBASE_TYPE BaseType_t;
 typedef portUBASE_TYPE UBaseType_t;
@@ -76,11 +75,199 @@ to be guarded with a critical section. */
 #else
 	#error __riscv_xlen is not defined
 #endif
-/*-----------------------------------------------------------*/
+
+/******************************************************************************/
+/******************************  PMP settings  ********************************/
+/******************************************************************************/
+
+#if( portUSING_MPU_WRAPPERS == 1 )
+#include "pmp.h"
+
+/* Privilege bit used to declare a Task as Privileged */
+#define portPRIVILEGE_BIT						( 0x80000000UL )
+
+/**************************/
+/* System call commands */
+/**************************/
+
+/* Command to indicate system call handler that yield is requested */
+#define portSVC_YIELD							0
+/* Command to indicate system call handler that interrupts should be disabled */
+#define portSVC_DISABLE_INTERRUPTS				1
+/* Command to indicate system call handler that interrupts should be disabled */
+#define portSVC_ENABLE_INTERRUPTS				2
+/* Command to indicate system call handler to start first task */
+#define portSVC_START_FIRST_TASK				3
+/* Command to indicate system call handler to switch to machine mode */
+#define portSVC_SWITCH_TO_MACHINE				4
+/* Command to indicate system call handler to switch to user mode */
+#define portSVC_SWITCH_TO_USER					5
+
+/**********************/
+/* PMP configs rights */
+/**********************/
+
+/* Used to give a PMP region read right */
+#define portPMP_REGION_READ_ONLY				( 0x01UL )
+/* Used to give a PMP region read/write right */
+#define portPMP_REGION_READ_WRITE				( 0x03UL )
+/* Used to give a PMP region execute right */
+#define portPMP_REGION_EXECUTE					( 0x04UL )
+/** 
+ * Used to indicate that a PMP region as no right, and therefore only 
+ * Machine/Supervisor mode access is possible
+ */
+#define portPMP_REGION_PRIVILEGED_ACCESS_ONLY	( 0x00UL )
+
+
+/********************/
+/* PMP configs mode */
+/********************/
+
+/* Used to indicate that a PMP region should be disable */
+#define portPMP_REGION_OFF						( 0x00UL )
+/* Used to indicate that a PMP region should use TOR mode */
+#define portPMP_REGION_ADDR_MATCH_TOR			( 0x08UL )
+/* Used to indicate that a PMP region should use NA4 mode */
+#define portPMP_REGION_ADDR_MATCH_NA4			( 0x10UL )
+/* Used to indicate that a PMP region should use NAPOT mode */
+#define portPMP_REGION_ADDR_MATCH_NAPOT			( 0x18UL )
+
+/********************/
+/* PMP configs lock */
+/********************/
+
+/**
+ * Lock a PMP region (apply right on Machine mode too, can only be unlock
+ * by reset)
+ */
+#define portPMP_REGION_LOCK						( 0x80UL )
+
+/****************************/
+/* PMP regions for FreeRTOS */
+/****************************/
+
+/* Start of unprivileged section that contain code to execute */
+#define portUNPRIVILEGED_EXECUTE_REGION_START   ( 0UL )
+/* End of unprivileged section that contain code to execute */
+#define portUNPRIVILEGED_EXECUTE_REGION_END		( 1UL )
+/* Privilege status that allow FreeRTOS to save current execution mode */
+#define portPRIVILEGE_STATUS_REGION	            ( 2UL )
+/* Start of task stack region */
+#define portSTACK_REGION_START					( 3UL )
+/* End of task stack region */
+#define portSTACK_REGION_END					( 4UL )
+/* Fisrt configurable region */
+#define portFIRST_CONFIGURABLE_REGION	        ( 5UL )
+/**
+ * End configurable region (base on the Maxiumum number of PMP regions that
+ * RiscV allow available regions).
+ * Should be use only when static allocation is required, otherwise use 
+ * portLAST_CONFIGURABLE_REGION_REAL(max_nb_pmp) (after init_pmp() execution)
+ */
+#define portLAST_CONFIGURABLE_REGION		    ( MAX_PMP_REGION - 1)
+/** 
+ * Maximum number of configurable regions
+ * Should be use only when static allocation is required, otherwise use 
+ * portNUM_CONFIGURABLE_REGIONS_REAL(max_nb_pmp) (after init_pmp() execution)
+ */
+#define portNUM_CONFIGURABLE_REGIONS		    ( ( portLAST_CONFIGURABLE_REGION - portFIRST_CONFIGURABLE_REGION ) + 1 )
+#define portTOTAL_NUM_REGIONS				    ( portNUM_CONFIGURABLE_REGIONS + 2 ) // Plus 2 to make space for the stack region.
+#define portTOTAL_NUM_CFG_REG				    ( NB_PMP_CFG_REG )
+
+/**
+ * the number of pmp available for one hart(core) is dynamically determinated
+ * so we need to reevaluate the last configurable region available
+ */
+#define portLAST_CONFIGURABLE_REGION_REAL(max_nb_pmp)	( (max_nb_pmp) - 1 )
+/**
+ * the number of pmp available for one hart(core) is dynamically determinated
+ * so we need to reevaluate the number of configurable regions
+ */
+#define portNUM_CONFIGURABLE_REGIONS_REAL(max_nb_pmp)	( ( portLAST_CONFIGURABLE_REGION_REAL( max_nb_pmp ) - portFIRST_CONFIGURABLE_REGION ) + 1 )
+
+/**
+ * Bit shift to apply on a PMP config to reach the region specified in parameter
+ */
+#define portPMPCFG_BIT_SHIFT(region)	( ((region) % SIZE_PMP_CFG_REG) << 3 )
+/**
+ * Get the pmpcfgx register index associated to the region input
+ */
+#define portGET_PMPCFG_IDX(region) 		((region) / SIZE_PMP_CFG_REG)
+
+/* minimal number of pmp to use FreeRTOS with pmp */
+#define portMINIMAL_NB_PMP				( 5UL )
+
+/**
+ * @brief PMP settings used to store PMP configs in task TCB
+ */
+typedef struct MPU_SETTINGS
+{
+    /* Configuration register configuration (pmpcfgx values) */
+	UBaseType_t uxPmpConfigRegAttribute [portTOTAL_NUM_CFG_REG];
+    /* Configuration register mask (pmpcfgx mask)*/
+	UBaseType_t uxPmpConfigRegMask [portTOTAL_NUM_CFG_REG];
+    /* Address register configuration (pmpaddrx values) */
+	UBaseType_t uxRegionBaseAddress [ portTOTAL_NUM_REGIONS ];
+} xMPU_SETTINGS;
+
+extern __attribute__((naked)) void vPortSyscall( unsigned int );
+
+/**
+ * @brief Do ecall to raise privilege
+ */
+void vRaisePrivilege( void );
+/**
+ * @brief Do ecall to reset privilege state
+ */
+void vResetPrivilege( void );
+
+/**
+ * @brief Supported execution modes 
+ */
+enum ePortPRIVILEGE_MODE {
+    /* User mode */
+    ePortUSER_MODE = 0,
+    /* Supervisor mode */
+    ePortSUPERVISOR_MODE =1,
+    /* Machine mode */
+    ePortMACHINE_MODE = 3,
+};
+
+/**
+ * @brief Determine the current execution mode of the hart
+ * 
+ * @return true (1) if the hart execute in machine mode
+ * @return false (0) otherwise
+ */
+BaseType_t xIsPrivileged( void );
+
+/**
+ * @brief Determine the current execution mode of the hart
+ * 
+ * @return true (1) if the hart execute in machine mode
+ * @return false (0) otherwise
+ */
+#define portIS_PRIVILEGED()			xIsPrivileged()
+
+/**
+ * @brief Do ecall to raise privilege
+ */
+#define portRAISE_PRIVILEGE()		vRaisePrivilege()
+
+/**
+ * @brief Do ecall to lower privilege level
+ */
+#define portRESET_PRIVILEGE()		vResetPrivilege()
+
+#endif /* portUSING_MPU_WRAPPERS */
 
 /* Architecture specifics. */
+/* We use decreasing stack  */
 #define portSTACK_GROWTH			( -1 )
+/* Number of tick per milliseconds */
 #define portTICK_PERIOD_MS			( ( TickType_t ) 1000 / configTICK_RATE_HZ )
+
 #ifdef __riscv64
 	#error This is the RV32 port that has not yet been adapted for 64.
 	#define portBYTE_ALIGNMENT			16
@@ -88,11 +275,17 @@ to be guarded with a critical section. */
 	#define portBYTE_ALIGNMENT 			16
 #endif
 /*-----------------------------------------------------------*/
+void vPortFreeRTOSInit( StackType_t xTopOfStack );
 
+extern void vPortFreeRTOSInit( StackType_t );
 
 /* Scheduler utilities. */
 extern void vTaskSwitchContext( void );
-#define portYIELD() __asm volatile( "ecall" );
+#if( portUSING_MPU_WRAPPERS == 1 )
+#define portYIELD() 	vPortSyscall(portSVC_YIELD)
+#else
+#define portYIELD() 	__asm volatile ( "ecall" );
+#endif
 #define portEND_SWITCHING_ISR( xSwitchRequired ) if( xSwitchRequired ) vTaskSwitchContext()
 #define portYIELD_FROM_ISR( x ) portEND_SWITCHING_ISR( x )
 /*-----------------------------------------------------------*/
@@ -102,10 +295,15 @@ extern void vTaskSwitchContext( void );
 extern void vTaskEnterCritical( void );
 extern void vTaskExitCritical( void );
 
-#define portSET_INTERRUPT_MASK_FROM_ISR() 0
+#define portSET_INTERRUPT_MASK_FROM_ISR() 			0
 #define portCLEAR_INTERRUPT_MASK_FROM_ISR( uxSavedStatusValue ) ( void ) uxSavedStatusValue
-#define portDISABLE_INTERRUPTS()	__asm volatile( "csrc mstatus, 8" )
-#define portENABLE_INTERRUPTS()		__asm volatile( "csrs mstatus, 8" )
+#if( portUSING_MPU_WRAPPERS == 1 )
+#define portDISABLE_INTERRUPTS()	vPortSyscall(portSVC_DISABLE_INTERRUPTS)
+#define portENABLE_INTERRUPTS()		vPortSyscall(portSVC_ENABLE_INTERRUPTS)
+#else
+#define portDISABLE_INTERRUPTS()	__asm volatile ( "csrc mstatus, 8" )
+#define portENABLE_INTERRUPTS()		__asm volatile ( "csrs mstatus, 8" )
+#endif
 #define portENTER_CRITICAL()	vTaskEnterCritical()
 #define portEXIT_CRITICAL()		vTaskExitCritical()
 /*-----------------------------------------------------------*/
@@ -140,19 +338,18 @@ not necessary for to use this port.  They are defined so the common demo files
 #define portTASK_FUNCTION( vFunction, pvParameters ) void vFunction( void *pvParameters )
 /*-----------------------------------------------------------*/
 
-#define portNOP() __asm volatile 	( " nop " )
+#define portNOP() 	__asm volatile ( " nop " )
 
 #define portINLINE	__inline
 
 #ifndef portFORCE_INLINE
-	#define portFORCE_INLINE inline __attribute__(( always_inline))
+	#define portFORCE_INLINE inline __attribute__(( always_inline, ))
 #endif
 
-#define portMEMORY_BARRIER() __asm volatile( "" ::: "memory" )
+#define portMEMORY_BARRIER() 	__asm volatile ( "" ::: "memory" )
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* PORTMACRO_H */
-
