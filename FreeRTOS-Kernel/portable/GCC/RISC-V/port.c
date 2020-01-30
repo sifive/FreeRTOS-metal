@@ -99,8 +99,11 @@ BaseType_t xIsPrivileged( void )
  */
 static void prvSetupPMP( void )
 {
-    extern uint32_t __unprivileged_section_start__[];
-    extern uint32_t __unprivileged_section_end__[];
+	extern uint32_t __privileged_functions_end__[];
+	extern uint32_t __FLASH_segment_start__[];
+	extern uint32_t __FLASH_segment_end__[];
+	extern uint32_t __privileged_data_start__[];
+	extern uint32_t __privileged_data_end__[];
 
 	uint8_t ucDefaultAttribute;
 	size_t uxDefaultBaseAddr;
@@ -111,62 +114,85 @@ static void prvSetupPMP( void )
 		configASSERT(0 <= lResult);
 	}
 
-	/* Check the expected PMP is present. */
+	/* Check the expected MPU is present. */
 	if( portMINIMAL_NB_PMP <= xPmpInfo.nb_pmp)
 	{
-		/* First setup the start address of the unprivilleged flash */
+		/* First setup the entire flash for unprivileged read only access. */
 		ucDefaultAttribute = 0;
 		uxDefaultBaseAddr = 0;
-
-        lResult = addr_modifier (xPmpInfo.granularity,
-                                ( size_t ) __unprivileged_section_start__,
-                                &uxDefaultBaseAddr);
+		lResult = napot_addr_modifier (xPmpInfo.granularity,
+									   (size_t) __FLASH_segment_start__,
+										&uxDefaultBaseAddr,
+										( size_t ) __FLASH_segment_end__ - ( size_t ) __FLASH_segment_start__ );
 		configASSERT(0 <= lResult);
 
 		ucDefaultAttribute =
-				((portPMP_REGION_READ_ONLY) |
-				(portPMP_REGION_EXECUTE) |
-				(portPMP_REGION_ADDR_MATCH_NA4));
+				((portMPU_REGION_READ_ONLY) |
+				(portMPU_REGION_EXECUTE) |
+				(portMPU_REGION_ADDR_MATCH_NAPOT));
 
-		lResult = write_pmp_config (&xPmpInfo, portUNPRIVILEGED_EXECUTE_REGION_START,
+		lResult = write_pmp_config (&xPmpInfo, portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portUNPRIVILEGED_FLASH_REGION),
                          ucDefaultAttribute, uxDefaultBaseAddr);
 		configASSERT(0 <= lResult);
 
-		/* Setup the end address of the unprivilleged flash */
+		/* Setup the first 16K for privileged only access (even though less
+		than 10K is actually being used).  This is where the kernel code is
+		placed. */
 		ucDefaultAttribute = 0;
 		uxDefaultBaseAddr = 0;
-        lResult = addr_modifier (xPmpInfo.granularity,
-                                ( size_t ) __unprivileged_section_end__,
-                                &uxDefaultBaseAddr);
+		lResult = napot_addr_modifier (	xPmpInfo.granularity,
+										(size_t) __FLASH_segment_start__,
+										&uxDefaultBaseAddr,
+										( size_t ) __privileged_functions_end__ - ( size_t ) __FLASH_segment_start__ );
 		configASSERT(0 <= lResult);
 
-		ucDefaultAttribute = ((portPMP_REGION_READ_ONLY) |
-                            (portPMP_REGION_EXECUTE) |
-                            (portPMP_REGION_ADDR_MATCH_TOR));
+		ucDefaultAttribute = ((portMPU_REGION_PRIVILEGED_ACCESS_ONLY) |
+							(portMPU_REGION_ADDR_MATCH_NAPOT));
 
-		lResult = write_pmp_config (&xPmpInfo, portUNPRIVILEGED_EXECUTE_REGION_END,
+		lResult = write_pmp_config (&xPmpInfo, portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portPRIVILEGED_FLASH_REGION),
                          ucDefaultAttribute, uxDefaultBaseAddr);
 		configASSERT(0 <= lResult);
 
-        /* Allow read only on the privilege status varibale */
-        ucDefaultAttribute = 0;
+		/* Setup the privileged data RAM region.  This is where the kernel data
+		is placed. */
+		ucDefaultAttribute = 0;
 		uxDefaultBaseAddr = 0;
-
-        lResult = addr_modifier (xPmpInfo.granularity,
-                                ( size_t ) &privilege_status,
-                                &uxDefaultBaseAddr);
+		lResult = napot_addr_modifier (	xPmpInfo.granularity,
+										(size_t) __privileged_data_start__,
+										&uxDefaultBaseAddr,
+										( size_t ) __privileged_data_end__ - ( size_t ) __privileged_data_start__ );
 		configASSERT(0 <= lResult);
 
 		ucDefaultAttribute =
-				((portPMP_REGION_READ_ONLY) |
-				(portPMP_REGION_ADDR_MATCH_NA4));
+				((portMPU_REGION_PRIVILEGED_ACCESS_ONLY) |
+				(portMPU_REGION_ADDR_MATCH_NAPOT));
 
-		lResult = write_pmp_config (&xPmpInfo, portPRIVILEGE_STATUS_REGION,
+		lResult = write_pmp_config (&xPmpInfo, portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portPRIVILEGED_RAM_REGION),
                          ucDefaultAttribute, uxDefaultBaseAddr);
 		configASSERT(0 <= lResult);
+
+		/* By default allow everything to access the general peripherals.  The
+		system peripherals and registers are protected. */
+		ucDefaultAttribute = 0;
+		uxDefaultBaseAddr = 0;
+		lResult = napot_addr_modifier (	xPmpInfo.granularity,
+										(size_t) portPERIPHERALS_START_ADDRESS,
+										&uxDefaultBaseAddr,
+										( size_t ) portPERIPHERALS_END_ADDRESS - ( size_t ) portPERIPHERALS_START_ADDRESS );
+		configASSERT(0 <= lResult);
+
+		ucDefaultAttribute =
+				((portMPU_REGION_READ_WRITE) |
+				(portMPU_REGION_ADDR_MATCH_NAPOT));
+
+		lResult = write_pmp_config (&xPmpInfo, portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portGENERAL_PERIPHERALS_REGION),
+                         ucDefaultAttribute, uxDefaultBaseAddr);
+		configASSERT(0 <= lResult);
+
 	}
 }
 #endif
+
 /*-----------------------------------------------------------*/
 
 BaseType_t xPortFreeRTOSInit( StackType_t xIsrTop )
@@ -475,7 +501,6 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
 	);
 }
 #endif
-
 /*-----------------------------------------------------------*/
 
 /**
@@ -545,7 +570,7 @@ __attribute__((naked)) void vPortSyscall( unsigned int Value )
 }
 /*-----------------------------------------------------------*/
 
-__attribute__ (( naked )) void vRaisePrivilege( void )
+void vRaisePrivilege( void ) /* __attribute__ (( naked )) */
 {
 	__asm volatile
 	(
@@ -557,7 +582,7 @@ __attribute__ (( naked )) void vRaisePrivilege( void )
 }
 /*-----------------------------------------------------------*/
 
-__attribute__ (( naked )) void vResetPrivilege( void ) 
+void vResetPrivilege( void ) /* __attribute__ (( naked )) */
 {
 	__asm volatile
 	(
@@ -569,112 +594,6 @@ __attribute__ (( naked )) void vResetPrivilege( void )
 }
 /*-----------------------------------------------------------*/
 
-static void prvSetupMPU( void )
-{
-	extern uint32_t __privileged_functions_end__[];
-	extern uint32_t __FLASH_segment_start__[];
-	extern uint32_t __FLASH_segment_end__[];
-	extern uint32_t __privileged_data_start__[];
-	extern uint32_t __privileged_data_end__[];
-
-	uint8_t ucDefaultAttribute;
-	size_t uxDefaultBaseAddr;
-	int32_t lResult = PMP_DEFAULT_ERROR;
-
-	if(0 == xPmpInfo.granularity) {
-		lResult = init_pmp (&xPmpInfo);
-		configASSERT(0 <= lResult);
-	}
-
-	/* Check the expected MPU is present. */
-	if( portMINIMAL_NB_PMP <= xPmpInfo.nb_pmp)
-	{
-		/* First setup the entire flash for unprivileged read only access. */
-		ucDefaultAttribute = 0;
-		uxDefaultBaseAddr = 0;
-		lResult = napot_addr_modifier (xPmpInfo.granularity,
-									   (size_t) __FLASH_segment_start__,
-										&uxDefaultBaseAddr,
-										( size_t ) __FLASH_segment_end__ - ( size_t ) __FLASH_segment_start__ );
-		configASSERT(0 <= lResult);
-
-		ucDefaultAttribute =
-				((portMPU_REGION_READ_ONLY) |
-				(portMPU_REGION_EXECUTE) |
-				(portMPU_REGION_ADDR_MATCH_NAPOT));
-
-		lResult = write_pmp_config (&xPmpInfo, portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portUNPRIVILEGED_FLASH_REGION),
-                         ucDefaultAttribute, uxDefaultBaseAddr);
-		configASSERT(0 <= lResult);
-
-		/* Setup the first 16K for privileged only access (even though less
-		than 10K is actually being used).  This is where the kernel code is
-		placed. */
-		ucDefaultAttribute = 0;
-		uxDefaultBaseAddr = 0;
-		lResult = napot_addr_modifier (	xPmpInfo.granularity,
-										(size_t) __FLASH_segment_start__,
-										&uxDefaultBaseAddr,
-										( size_t ) __privileged_functions_end__ - ( size_t ) __FLASH_segment_start__ );
-		configASSERT(0 <= lResult);
-
-		ucDefaultAttribute = ((portMPU_REGION_PRIVILEGED_ACCESS_ONLY) |
-							(portMPU_REGION_ADDR_MATCH_NAPOT));
-
-		lResult = write_pmp_config (&xPmpInfo, portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portPRIVILEGED_FLASH_REGION),
-                         ucDefaultAttribute, uxDefaultBaseAddr);
-		configASSERT(0 <= lResult);
-
-		/* Setup the privileged data RAM region.  This is where the kernel data
-		is placed. */
-		ucDefaultAttribute = 0;
-		uxDefaultBaseAddr = 0;
-		lResult = napot_addr_modifier (	xPmpInfo.granularity,
-										(size_t) __privileged_data_start__,
-										&uxDefaultBaseAddr,
-										( size_t ) __privileged_data_end__ - ( size_t ) __privileged_data_start__ );
-		configASSERT(0 <= lResult);
-
-		ucDefaultAttribute =
-				((portMPU_REGION_PRIVILEGED_ACCESS_ONLY) |
-				(portMPU_REGION_ADDR_MATCH_NAPOT));
-
-		lResult = write_pmp_config (&xPmpInfo, portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portPRIVILEGED_RAM_REGION),
-                         ucDefaultAttribute, uxDefaultBaseAddr);
-		configASSERT(0 <= lResult);
-
-		/* By default allow everything to access the general peripherals.  The
-		system peripherals and registers are protected. */
-		ucDefaultAttribute = 0;
-		uxDefaultBaseAddr = 0;
-		lResult = napot_addr_modifier (	xPmpInfo.granularity,
-										(size_t) portPERIPHERALS_START_ADDRESS,
-										&uxDefaultBaseAddr,
-										( size_t ) portPERIPHERALS_END_ADDRESS - ( size_t ) portPERIPHERALS_START_ADDRESS );
-		configASSERT(0 <= lResult);
-
-		xMPUSettings->xRegion[ portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portGENERAL_PERIPHERALS_REGION) ].uxRegionBaseAddress = uxDefaultBaseAddr;
-
-		ucDefaultAttribute =
-				((portMPU_REGION_READ_WRITE) |
-				(portMPU_REGION_ADDR_MATCH_NAPOT));
-
-		lResult = write_pmp_config (&xPmpInfo, portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portGENERAL_PERIPHERALS_REGION),
-                         ucDefaultAttribute, uxDefaultBaseAddr);
-		configASSERT(0 <= lResult);
-
-	}
-}
-/*-----------------------------------------------------------*/
-
-/**
- * @brief Store PMP settings in Task TCB
- * 
- * @param[out]  xPMPSettings    PMP settings stored in Task TCB
- * @param[in]   xRegions        PMP configuration of the task
- * @param[in]   pxBottomOfStack address of bottom of stack
- * @param[in]   ulStackDepth    size of stack
- */
 void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xMPUSettings,
 								const struct xMEMORY_REGION * const xRegions,
 								StackType_t *pxBottomOfStack,

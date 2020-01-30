@@ -325,7 +325,11 @@ handle_exception:
 	addi	t0, t0, -8
 	blt		t0, x0, is_exception /* mcause < 8, must be fault */
 	addi	t0, t0, -4
+#if( portUSING_MPU_WRAPPERS == 1 )
+	blt		t0, x0, environment_switch
+#else
 	blt		t0, x0, ecall_yield
+#endif
 
 is_exception:
 	/* restore t0 and save sp in mscratch. */
@@ -349,6 +353,60 @@ is_exception:
 
 	load_x  x2, PORT_CONTEXT_xOFFSET(2)(sp)
 	mret
+
+#if( portUSING_MPU_WRAPPERS == 1 )
+environment_switch:
+	li t0, 5
+	bgt	a0,	t0,	ecall_end
+	la t0, 1f
+	slli	a0, a0, 2
+	add t0, t0, a0
+	jr t0
+1:
+	jal x0, yeild_call
+	jal x0, ecall_disable_interrupt
+	jal x0, ecall_enable_interrupt
+	jal x0, ecall_start_first_task
+	jal x0, ecall_switch_to_machine
+	jal x0, ecall_switch_to_user
+
+ecall_disable_interrupt:
+	/* Clear mpie */
+	li a0, 0x80
+	csrc mstatus, a0
+	j ecall_mret
+
+ecall_enable_interrupt:
+	/* Set mpie */
+	li a0, 0x80
+	csrs mstatus, a0
+	j ecall_mret
+
+ecall_start_first_task:
+	/* restore t0 */
+	csrr	t0, mscratch
+	j xPortStartFirstTask
+
+ecall_switch_to_machine:
+	/* Set mpp */
+	li a0, 0x1800
+	csrs mstatus, a0
+	j ecall_mret
+
+ecall_switch_to_user:
+	/* Clear mpp */
+	li a0, 0x1800
+	csrc mstatus, a0
+	j ecall_mret
+
+ecall_mret:
+	csrr t0, mepc
+	addi	t0, t0, 4						/* Synchronous so updated exception return address to the instruction after the instruction that generated the exeption. */
+	csrw	mepc, t0
+	/* restore t0 */
+	csrr	t0, mscratch
+	mret
+#endif
 
 ecall_yield:
 	portSAVE_BaseReg
