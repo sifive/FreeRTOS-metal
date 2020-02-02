@@ -84,6 +84,7 @@ task stack, not the ISR stack). */
 #endif /* configCHECK_FOR_STACK_OVERFLOW > 2 */
 
 #if( portUSING_MPU_WRAPPERS == 1 )
+void vResetPrivilege( void ) __attribute__ (( naked ));
 
 pmp_info_t xPmpInfo = {0,0};
 
@@ -99,11 +100,8 @@ BaseType_t xIsPrivileged( void )
  */
 static void prvSetupPMP( void )
 {
-	extern uint32_t __privileged_functions_end__[];
-	extern uint32_t __FLASH_segment_start__[];
-	extern uint32_t __FLASH_segment_end__[];
-	extern uint32_t __privileged_data_start__[];
-	extern uint32_t __privileged_data_end__[];
+    extern uint32_t __unprivileged_section_start__[];
+    extern uint32_t __unprivileged_section_end__[];
 
 	uint8_t ucDefaultAttribute;
 	size_t uxDefaultBaseAddr;
@@ -127,9 +125,9 @@ static void prvSetupPMP( void )
 		configASSERT(0 <= lResult);
 
 		ucDefaultAttribute =
-				((portMPU_REGION_READ_ONLY) |
-				(portMPU_REGION_EXECUTE) |
-				(portMPU_REGION_ADDR_MATCH_NAPOT));
+				((portPMP_REGION_READ_ONLY) |
+				(portPMP_REGION_EXECUTE) |
+				(portPMP_REGION_ADDR_MATCH_NAPOT));
 
 		lResult = write_pmp_config (&xPmpInfo, portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portUNPRIVILEGED_FLASH_REGION),
                          ucDefaultAttribute, uxDefaultBaseAddr);
@@ -146,8 +144,8 @@ static void prvSetupPMP( void )
 										( size_t ) __privileged_functions_end__ - ( size_t ) __FLASH_segment_start__ );
 		configASSERT(0 <= lResult);
 
-		ucDefaultAttribute = ((portMPU_REGION_PRIVILEGED_ACCESS_ONLY) |
-							(portMPU_REGION_ADDR_MATCH_NAPOT));
+		ucDefaultAttribute = ((portPMP_REGION_PRIVILEGED_ACCESS_ONLY) |
+							(portPMP_REGION_ADDR_MATCH_NAPOT));
 
 		lResult = write_pmp_config (&xPmpInfo, portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portPRIVILEGED_FLASH_REGION),
                          ucDefaultAttribute, uxDefaultBaseAddr);
@@ -164,8 +162,8 @@ static void prvSetupPMP( void )
 		configASSERT(0 <= lResult);
 
 		ucDefaultAttribute =
-				((portMPU_REGION_PRIVILEGED_ACCESS_ONLY) |
-				(portMPU_REGION_ADDR_MATCH_NAPOT));
+				((portPMP_REGION_PRIVILEGED_ACCESS_ONLY) |
+				(portPMP_REGION_ADDR_MATCH_NAPOT));
 
 		lResult = write_pmp_config (&xPmpInfo, portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portPRIVILEGED_RAM_REGION),
                          ucDefaultAttribute, uxDefaultBaseAddr);
@@ -182,13 +180,31 @@ static void prvSetupPMP( void )
 		configASSERT(0 <= lResult);
 
 		ucDefaultAttribute =
-				((portMPU_REGION_READ_WRITE) |
-				(portMPU_REGION_ADDR_MATCH_NAPOT));
+				((portPMP_REGION_READ_WRITE) |
+				(portPMP_REGION_ADDR_MATCH_NAPOT));
 
 		lResult = write_pmp_config (&xPmpInfo, portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portGENERAL_PERIPHERALS_REGION),
                          ucDefaultAttribute, uxDefaultBaseAddr);
 		configASSERT(0 <= lResult);
 
+        /* Allow read only on the privilege status varibale */
+        ucDefaultAttribute = 0;
+		uxDefaultBaseAddr = 0;
+
+        lResult = addr_modifier (xPmpInfo.granularity,
+                                ( size_t ) &privilege_status,
+                                &uxDefaultBaseAddr);
+		configASSERT(0 <= lResult);
+
+		ucDefaultAttribute =
+				((portPMP_REGION_READ_ONLY) |
+				(portPMP_REGION_ADDR_MATCH_NA4));
+
+		lResult = write_pmp_config (&xPmpInfo, portPRIVILEGE_STATUS_REGION,
+                         ucDefaultAttribute, uxDefaultBaseAddr);
+		configASSERT(0 <= lResult);
+
+        
 	}
 }
 #endif
@@ -309,7 +325,7 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
 {
     /* Compute jump offset to avoid configure unuse PMP */
 	asm volatile (
-		"li t0, 13 \n" /* maximum number of reconfigurable PMP for a core */
+		"li t0, 16 \n" /* maximum number of  PMP usable for a core */
 		"sub a2, t0, a0 \n"
 		"slli a2, a2, 3 \n" /* compute the jump offset */
 		::: "a0", "a2", "t0"
@@ -355,7 +371,7 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
         "add t2, t1, a2 \n"
         "jr t2 \n"
         "1: \n"
-        "lw t4, 48(t5) \n"
+        "lw t4, 58(t5) \n"
         "csrw pmpaddr15, t4 \n"
         "lw t3, 44(t5) \n"
         "csrw pmpaddr14, t3 \n"
@@ -381,6 +397,12 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
         "csrw pmpaddr4, t1 \n"
         "lw t4, 0(t5) \n"
         "csrw pmpaddr3, t4 \n"
+        // "lw t3, 0(t5) \n"
+        // "csrw pmpaddr2, t3 \n"
+        // "lw t2, 4(t5) \n"
+        // "csrw pmpaddr1, t2 \n"
+        // "lw t1, 0(t5) \n"
+        // "csrw pmpaddr0, t1 \n"
         ::: "t1", "t2", "t3", "t4"
     );
 #elif __riscv_xlen == 64
@@ -416,6 +438,12 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
         "csrw pmpaddr4, t1 \n"
         "ld t4, 0(t5) \n"
         "csrw pmpaddr3, t4 \n"
+        // "ld t3, 16(t5) \n"
+        // "csrw pmpaddr2, t3 \n"
+        // "ld t2, 8(t5) \n"
+        // "csrw pmpaddr1, t2 \n"
+        // "ld t1, 0(t5) \n"
+        // "csrw pmpaddr0, t1 \n"
         ::: "t1", "t2", "t3", "t4"
     );
 #endif
@@ -594,7 +622,7 @@ void vResetPrivilege( void ) /* __attribute__ (( naked )) */
 }
 /*-----------------------------------------------------------*/
 
-void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xMPUSettings,
+void vPortStoreTaskPMPSettings( xMPU_SETTINGS *xPMPSettings,
 								const struct xMEMORY_REGION * const xRegions,
 								StackType_t *pxBottomOfStack,
 								uint32_t ulStackDepth )
@@ -616,11 +644,13 @@ void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xMPUSettings,
 	memset(xPMPSettings, 0, sizeof(xMPU_SETTINGS));
 
 	if( xRegions == NULL ) {
-		/* No MPU regions are specified so allow access to all RAM. */
-		lResult = napot_addr_modifier (xPmpInfo.granularity,
-									   (size_t) __SRAM_segment_start__,
-										&uxBaseAddressChecked,
-										( size_t ) __SRAM_segment_end__ - ( size_t ) __SRAM_segment_start__ );
+        /* No MPU regions are specified so allow access to all data section */
+
+        /* Config stack start address */
+        uxBaseAddressChecked = 0;
+        lResult = addr_modifier (xPmpInfo.granularity,
+                                (size_t) __unprivileged_data_section_start__,
+                                &uxBaseAddressChecked);
 		configASSERT(0 <= lResult);
 
 		xPMPSettings->uxRegionBaseAddress[0] = uxBaseAddressChecked;
@@ -635,10 +665,9 @@ void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xMPUSettings,
 
 		/* Config stack end address and TOR */
 		uxBaseAddressChecked = 0;
-		lResult = napot_addr_modifier (	xPmpInfo.granularity,
-										(size_t) __privileged_data_start__,
-										&uxBaseAddressChecked,
-										( size_t ) __privileged_data_end__ - ( size_t ) __privileged_data_start__ );
+		lResult = addr_modifier (xPmpInfo.granularity,
+                                (size_t) __unprivileged_data_section_end__,
+                                &uxBaseAddressChecked);
 		configASSERT(0 <= lResult);
 
 		xPMPSettings->uxRegionBaseAddress[1] = uxBaseAddressChecked;
@@ -654,8 +683,8 @@ void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xMPUSettings,
 		/* Invalidate all other configurable regions. */
 		for( ul = 2; ul < portNUM_CONFIGURABLE_REGIONS_REAL (xPmpInfo.nb_pmp) + 2; ul++ )
 		{
-			xMPUSettings->xRegion[ portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portSTACK_REGION + ul) ].uxRegionBaseAddress = 0UL;
-			xMPUSettings->xRegion[ portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portSTACK_REGION + ul) ].uxRegionAttribute = portMPU_REGION_OFF;
+			xPMPSettings->xRegion[ portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portSTACK_REGION + ul) ].uxRegionBaseAddress = 0UL;
+			xPMPSettings->xRegion[ portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portSTACK_REGION + ul) ].uxRegionAttribute = portPMP_REGION_OFF;
 		}
 	}
 	else
@@ -707,24 +736,24 @@ void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xMPUSettings,
 		{
 			if( ( xRegions[ lIndex ] ).ulLengthInBytes > 0UL )
 			{
-				uxBaseAddressChecked = 0;
-				lResult = napot_addr_modifier (	xPmpInfo.granularity,
-												(size_t) xRegions[ lIndex ].pvBaseAddress,
-												&uxBaseAddressChecked,
-												( size_t ) xRegions[ lIndex ].ulLengthInBytes );
-				configASSERT(0 <= lResult);
+				// uxBaseAddressChecked = 0;
+				// lResult = napot_addr_modifier (	xPmpInfo.granularity,
+				// 								(size_t) xRegions[ lIndex ].pvBaseAddress,
+				// 								&uxBaseAddressChecked,
+				// 								( size_t ) xRegions[ lIndex ].ulLengthInBytes );
+				// configASSERT(0 <= lResult);
 
-				xMPUSettings->xRegion[ portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portSTACK_REGION + ul) ].uxRegionBaseAddress = uxBaseAddressChecked;
+				xPMPSettings->xRegion[ portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portSTACK_REGION + ul) ].uxRegionBaseAddress = uxBaseAddressChecked;
 
-				xMPUSettings->xRegion[ portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portSTACK_REGION + ul) ].uxRegionAttribute =
+				xPMPSettings->xRegion[ portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portSTACK_REGION + ul) ].uxRegionAttribute =
 						(( xRegions[ lIndex ].ulParameters ) <<
 						portPMPCFG_BIT_SHIFT(portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portSTACK_REGION + ul)));
 			}
 			else
 			{
 				/* Invalidate the region. */
-				xMPUSettings->xRegion[ portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portSTACK_REGION + ul) ].uxRegionBaseAddress = 0UL;
-				xMPUSettings->xRegion[ portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portSTACK_REGION + ul) ].uxRegionAttribute = portMPU_REGION_OFF;
+				xPMPSettings->xRegion[ portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portSTACK_REGION + ul) ].uxRegionBaseAddress = 0UL;
+				xPMPSettings->xRegion[ portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portSTACK_REGION + ul) ].uxRegionAttribute = portPMP_REGION_OFF;
 			}
 
 			lIndex++;

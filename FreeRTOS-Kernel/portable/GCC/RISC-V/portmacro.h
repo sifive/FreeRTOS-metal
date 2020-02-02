@@ -124,6 +124,9 @@ to be guarded with a critical section. */
 /********************/
 /* PMP configs mode */
 /********************/
+#define portUNPRIVILEGED_FLASH_REGION_START		( 0UL )
+#define portUNPRIVILEGED_FLASH_REGION_END		( 1UL )
+#define portPRIVILEGE_STATUS_REGION	            ( 2UL )
 
 /* Used to indicate that a PMP region should be disable */
 #define portPMP_REGION_OFF						( 0x00UL )
@@ -199,11 +202,11 @@ to be guarded with a critical section. */
 
 // #define portSWITCH_TO_USER_MODE() __asm volatile ( " mrs r0, control \n orr r0, #1 \n msr control, r0 " ::: "r0", "memory" )
  
-typedef struct MPU_REGION_REGISTERS
+typedef struct PMP_REGION_REGISTERS
 {
 	UBaseType_t uxRegionBaseAddress;
 	UBaseType_t uxRegionAttribute;
-} xMPU_REGION_REGISTERS;
+} xPMP_REGION_REGISTERS;
 
 /**
  * Bit shift to apply on a PMP config to reach the region specified in parameter
@@ -252,6 +255,15 @@ enum ePortPRIVILEGE_MODE {
     /* Machine mode */
     ePortMACHINE_MODE = 3,
 };
+
+
+enum ePortPRIVILEGE_MODE {
+    ePortUSER_MODE = 0,
+    ePortSUPERVISOR_MODE =1,
+    ePortMACHINE_MODE = 3,
+};
+
+extern BaseType_t xIsPrivileged( void );
 
 /**
  * @brief Determine the current execution mode of the hart

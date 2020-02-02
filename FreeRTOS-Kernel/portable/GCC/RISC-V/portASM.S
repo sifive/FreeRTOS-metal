@@ -137,6 +137,12 @@ definitions. */
 .extern uxTimerIncrementsForOneTick /* size_t type so 32-bit on 32-bit core and 64-bits on 64-bit core. */
 .extern xISRStackTop
 
+#if( portUSING_MPU_WRAPPERS == 1 )
+	.extern vPortPmpSwitch
+	.extern xPmpInfo
+    .extern privilege_status
+#endif
+
 #if( configUSE_SEGGER_SYSTEMVIEW == 1 )
 # ifndef SYSVIEW_RECORD_ENTER_ISR
 	#error SYSVIEW_RECORD_ENTER_ISR must be defined to the function to be called when you enter into ISR. In basic usage it is define to SEGGER_SYSVIEW_RecordEnterISR 
@@ -389,12 +395,18 @@ ecall_start_first_task:
 
 ecall_switch_to_machine:
 	/* Set mpp */
+    li a0, 3
+    la a1, privilege_status
+    sw a0, 0(a1)
 	li a0, 0x1800
 	csrs mstatus, a0
 	j ecall_mret
 
 ecall_switch_to_user:
 	/* Clear mpp */
+    li a0, 3
+    la a1, privilege_status
+    sw a0, 0(a1)
 	li a0, 0x1800
 	csrc mstatus, a0
 	j ecall_mret
@@ -534,6 +546,13 @@ switch_context:
 #endif
 	load_x s9, pxCurrentTCB			/* Load pxCurrentTCB. */
 	load_x  sp, 0( s9 )				/* Read sp from first TCB member. */
+#if( portUSING_MPU_WRAPPERS == 1 )
+	lw a0, xPmpInfo
+    li a1, 2
+    sub a0, a0, a1
+	addi a1, s9, 4
+	jal vPortPmpSwitch
+#endif
 
 end_trap_handler:	
 	load_x  t1, PORT_CONTEXT_xOFFSET(2)(sp)
@@ -575,6 +594,15 @@ xPortStartFirstTask:
 	load_x  sp, 0( t2 )				 	/* Read sp from first TCB member. */
 
 
+	/** setup MPU */
+# if( portUSING_MPU_WRAPPERS == 1 )
+	lw a0, xPmpInfo
+    li a1, 2
+    sub a0, a0, a1
+	addi a1, t2, 4
+	jal vPortPmpSwitch
+# endif
+	
 	/* Restore first TCB member */
 	load_x  t1,  PORT_CONTEXT_xOFFSET(2)(sp)
 	store_x  t1, 0( t2 )				/* Write sp saved value to first TCB member. */
