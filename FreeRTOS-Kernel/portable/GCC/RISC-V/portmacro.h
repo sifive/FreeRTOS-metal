@@ -25,7 +25,6 @@
  * 1 tab == 4 spaces!
  */
 
-
 #ifndef PORTMACRO_H
 #define PORTMACRO_H
 
@@ -76,10 +75,6 @@ to be guarded with a critical section. */
 	#error __riscv_xlen is not defined
 #endif
 /*-----------------------------------------------------------*/
-
-/******************************************************************************/
-/******************************  PMP settings  ********************************/
-/******************************************************************************/
 
 #if( portUSING_MPU_WRAPPERS == 1 )
 #include "pmp.h"
@@ -183,7 +178,7 @@ to be guarded with a critical section. */
  * the number of pmp available for one hart(core) is dynamically determinated
  * so we need to reevaluate the number of configurable regions
  */
-#define portLAST_CONFIGURABLE_REGION_REAL(max_nb_pmp)	( max_nb_pmp - 1 )
+#define portLAST_CONFIGURABLE_REGION_REAL(max_nb_pmp)	( (max_nb_pmp) - 1 )
 #define portNUM_CONFIGURABLE_REGIONS_REAL(max_nb_pmp)	( ( portLAST_CONFIGURABLE_REGION_REAL( max_nb_pmp ) - portFIRST_CONFIGURABLE_REGION ) + 1 )
 
 /* TO DO */
@@ -194,8 +189,10 @@ to be guarded with a critical section. */
 // max_region : number of region for the hart
 // priority: 0 is the lowest priority
 // #define portREGION_MATCHING(max_region, priority)	 ( max_region - priority -1 )
-#define portCONFIGURABLE_REGIONS_REORDER(max_region, region) ( max_region - region -1 )
-#define portPMPCFG_BIT_SHIFT(region)	 ( (region % SIZE_PMP_CFG_REG) << 3 )
+// #define portCONFIGURABLE_REGIONS_REORDER(max_region, region) ( max_region - region -1 )
+
+#define portPMPCFG_BIT_SHIFT(region)	( ((region) % SIZE_PMP_CFG_REG) << 3 )
+#define portGET_PMPCFG_IDX(region) 		((region) / SIZE_PMP_CFG_REG)
 
 // minimal number of pmp to use FreeRTOS with pmp
 #define portMINIMAL_NB_PMP				( 8UL ) /* 8 regions, unified. */
