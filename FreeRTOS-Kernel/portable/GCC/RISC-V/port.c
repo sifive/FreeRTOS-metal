@@ -41,7 +41,7 @@
 /*
  * xISRStackTop must be declared elsewhere.
  */
-extern const StackType_t xISRStackTop; 
+extern StackType_t xISRStackTop;
 
 /*-----------------------------------------------------------*/
 
@@ -75,12 +75,81 @@ task stack, not the ISR stack). */
 	/* Define the function away. */
 	#define portCHECK_ISR_STACK()
 #endif /* configCHECK_FOR_STACK_OVERFLOW > 2 */
+/*-----------------------------------------------------------*/
 
+void vPortFreeRTOSInit( StackType_t xTopOfStack )
+{
+#ifndef configISR_STACK_SIZE
+# define configISR_STACK_SIZE            0
+#endif
+
+#if( configISR_STACK_SIZE == 0)
+	BaseType_t xISRStackLength = 0x100;
+#else
+	BaseType_t xISRStackLength = configISR_STACK_SIZE;
+#endif
+	extern void vPortMoveStack( StackType_t, BaseType_t );
+
+	/*
+	 * stack mapping before :
+	 * 		Top stack +----------------------+ xTopOfStack
+	 * 		          | stack allocation     |
+	 * 		          | before this function |
+	 * 		          | Call Stack_SYS       |
+	 * 		          +----------------------+
+	 * 		          | ....                 |
+	 * 		          |                      |
+	 * 		Bottom    +----------------------+
+	 *
+	 * stack mapping after :
+	 * 		Top stack +----------------------+ xTopOfStack
+	 * 		          | Space to store       |
+	 * 		          | context before       |
+	 * 		          | FreeRtos scheduling  |
+	 * 		          +----------------------+ xISRStackTop
+	 * 		          | stack space for      |
+	 * 		          | ISR execution        |
+	 * 		          +----------------------+
+	 * 		          | stack allocation     |
+	 * 		          | before this function |
+	 * 		          | Call Stack_SYS       |
+	 * 		          +----------------------+
+	 * 		          | ....                 |
+	 * 		          |                      |
+	 * 		Bottom    +----------------------+
+	 */
+
+	xISRStackLength += PORT_CONTEXT_SIZEOF;
+
+	vPortMoveStack(xTopOfStack, xISRStackLength);
+
+	xISRStackTop = xTopOfStack + PORT_CONTEXT_SIZEOF;
+
+#if( configASSERT_DEFINED == 1 )
+{
+        /* Check alignment of the interrupt stack - which is the same as the
+        stack that was being used by main() prior to the scheduler being
+        started. */
+        configASSERT( ( xISRStackTop & portBYTE_ALIGNMENT_MASK ) == 0 );
+}
+#endif /* configASSERT_DEFINED */
+
+#if( configCLINT_BASE_ADDRESS != 0 )
+	/* There is a clint then interrupts can branch directly to the FreeRTOS 
+	 * trap handler.
+	 */
+ 	 __asm volatile ("la t0, freertos_risc_v_trap_handler\n"
+	                  "csrw mtvec, t0\n");
+#else
+# warning "*** The interrupt controller must to be configured before (ouside of this file). ***"
+#endif
+}
 /*-----------------------------------------------------------*/
 
 BaseType_t xPortStartScheduler( void )
 {
-	extern void xPortStartFirstTask( void );
+	extern BaseType_t xPortStartFirstTask( void );
+	BaseType_t xRetValue = pdFAIL;
 
 	#if( configASSERT_DEFINED == 1 )
 	{
@@ -98,17 +167,22 @@ BaseType_t xPortStartScheduler( void )
 	}
 	#endif /* configASSERT_DEFINED */
 
-	xPortStartFirstTask();
+	xRetValue = xPortStartFirstTask();
 
-	/* Should not get here as after calling xPortStartFirstTask() only tasks
-	should be executing. */
-	return pdFAIL;
+	return xRetValue;
 }
 /*-----------------------------------------------------------*/
 
 void vPortEndScheduler( void )
 {
-	/* Not implemented. */
+	extern void xPortRestoreBeforeFirstTask(void);
+
+	xPortRestoreBeforeFirstTask();
+
+	/* 
+	 * Should not get here as after calling xPortRestoreBeforeFirstTask() we should 
+	 * return after de execution of xPortStartFirstTask in xPortStartScheduler function.
+	 */
 	for( ;; );
 }
 

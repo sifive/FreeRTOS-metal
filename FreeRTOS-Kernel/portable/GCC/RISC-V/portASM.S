@@ -75,7 +75,9 @@ definitions. */
 
 .global xPortStartFirstTask
 .global freertos_risc_v_trap_handler
-.global pxPortInitialiseStack
+.global vPortMoveStack
+.global xPortRestoreBeforeFirstTask
+
 .extern pxCurrentTCB
 .extern vTaskSwitchContext
 .extern pullMachineTimerCompareRegister
@@ -286,7 +288,7 @@ handle_exception:
 	addi	t0, t0, -8
 	blt		t0, x0, is_exception /* sp < 8, must be fault */
 	addi	t0, t0, -4
-	blt		t0, x0, environment_call
+	blt		t0, x0, yeild_call
 
 is_exception:
 	/* restore t0 and save sp in mscratch. */
@@ -310,7 +312,7 @@ infinite_loop:
 	ebreak
 	j	infinite_loop
 
-environment_call:
+yeild_call:
 	addi	sp, sp, -PORT_CONTEXT_SIZEOF
 	portSAVE_MAIN_REG
 	portSAVE_Ax_REG
@@ -337,12 +339,10 @@ environment_call:
 	store_x  sp, 0( s9 )
 
 	/* Save sp into s11 */
-	mv 		s11, sp
-
+	mv  s11, sp
 	load_x sp, xISRStackTop			/* Switch to ISR stack before function call. */
 
-	li 		s10, 1
-	j	exit_trap_handler
+	j	switch_context
 
 handle_interrupt:
 	addi	sp, sp, -PORT_CONTEXT_SIZEOF
@@ -356,16 +356,13 @@ handle_interrupt:
 	 * s3 = mepc
 	 * s4 = mstatus
 	 * s9 will be use for pxCurrentTCB
-	 * s10 will be use for if we want to call vTaskSwitchContext
+	 * s10 will be use to save ISR_sp
 	 * s11 will be use to save sp
 	 */
 
 	/* Store the value of sp when the interrupt occur */
 	addi t0, sp, PORT_CONTEXT_SIZEOF
 	store_x  t0, PORT_CONTEXT_xOFFSET(2)(sp)
-
-	/* By default we assume not making a switch context */
-	li	s10, 0
 
 	/* Load pxCurrentTCB and update first TCB member(pxTopOfStack) with sp. */
 	load_x  s9, pxCurrentTCB
@@ -411,35 +408,37 @@ handle_interrupt:
 # endif /* __riscv_xlen == 64 */
 
 	jal xTaskIncrementTick
-	beqz a0, exit_trap_handler		/* Don't switch context if incrementing tick didn't unblock a task. */
-	li 		s10, 1
-	j exit_trap_handler
+	beqz a0, restore_before_exit		/* Don't switch context if incrementing tick didn't unblock a task. */
+	j switch_context
+
+restore_before_exit:
+#if( configUSE_SEGGER_SYSTEMVIEW == 1 )
+	jal SYSVIEW_RECORD_EXIT_ISR
+#endif
+	mv	s10, sp
+	mv  sp, s11
+	j end_trap_handler
 
 test_if_external_interrupt:			/* If there is a CLINT and the mtimer interrupt is not pending then check to see if an external interrupt is pending. */
 	addi t1, t1, 4					/* 0x80000007 + 4 = 0x8000000b == Machine external interrupt. */
-	bne s2, t1, as_yet_unhandled	/* Something as yet unhandled. */
+	bne s2, t1, unrecoverable_error	/* Something as yet unhandled. */
 
 #endif /* portasmHAS_CLINT */
 
 	csrr 	a0, mhartid
 	mv		a1, s2
 	mv 		a2, s5
-	jal portHANDLE_INTERRUPT			/* Jump to the interrupt handler if there is no CLINT or if there is a CLINT and it has been determined that an external interrupt is pending. */
-	j exit_trap_handler
-
-as_yet_unhandled:
-	ebreak
-	j as_yet_unhandled
-
-exit_trap_handler:
-	bne s10, x0, proceed_switch_context
-#if( configUSE_SEGGER_SYSTEMVIEW == 1 )
-	jal SYSVIEW_RECORD_EXIT_ISR
-#endif
-	mv  sp, s11
+	/* Switch to ISR stack before function call. */
+	load_x sp, xISRStackTop
+	jal portHANDLE_INTERRUPT
+	mv	sp, s11
 	j end_trap_handler
 
-proceed_switch_context:
+unrecoverable_error:
+	wfi
+	j unrecoverable_error
+
+switch_context:
 	jal	vTaskSwitchContext
 #if( configUSE_SEGGER_SYSTEMVIEW == 1 )
 	jal SYSVIEW_RECORD_EXIT_ISR_TO_SCHEDULER
@@ -465,12 +464,35 @@ end_trap_handler:
 .align 8
 .func
 xPortStartFirstTask:
+	/*
+	 * Save all register to space before xISRStackTop (it should be prepared by vPortFreeRTOSInit).
+	 * It will be restored when vPortEndScheduler will be call
+	 */
+	load_x  sp, xISRStackTop
+	portSAVE_MAIN_REG
+	portSAVE_Ax_REG
+	portSAVE_Tx_REG
+	portSAVE_MACHINE_SATE
+	/* s2 = mcause
+	 * s3 = mepc
+	 * s4 = mstatus
+	 * s9 will be use for pxCurrentTCB
+	 * s10 will be use for if we call vTaskSwitchContext
+	 * s11 will be use to save sp
+	 */
+	store_x	x1, PORT_CONTEXT_mepcOFFSET(sp) 
+	/* Store the value of sp when the interrupt occur */
+	addi 	t0, sp, PORT_CONTEXT_SIZEOF
+	store_x t0, PORT_CONTEXT_xOFFSET(2)(sp)
 
-	/* Interrupts should be branch directly to the FreeRTOS	trap handler.
-	Otherwise the interrupt controller will need to be configured outside of
-	this file. */
-	la t0, freertos_risc_v_trap_handler
-	csrw mtvec, t0
+	/*
+	 * Retore the Context from the TCB of the task (pxCurrentTCB)
+	 */
+	load_x  t0, pxCurrentTCB			/* Load pxCurrentTCB. */
+	load_x  sp, 0( t0 )				 	/* Read sp from first TCB member. */
+
+	/* x1			ra			Return address */
+	store_x  x1,  PORT_CONTEXT_xOFFSET(1)(sp)
 
 	load_x  t0, pxCurrentTCB			/* Load pxCurrentTCB. */
 	load_x  sp, 0( t0 )				 	/* Read sp from first TCB member. */
@@ -529,6 +551,42 @@ first_task_timer_loop:
 	load_x  ra, PORT_CONTEXT_mepcOFFSET(sp) /* Note for starting the scheduler the exception return address is used as the function return address. */
 	load_x  x2, PORT_CONTEXT_xOFFSET(2)(sp)
 
+	ret
+	.endfunc
+/*-----------------------------------------------------------*/
+
+.align 8
+.func
+xPortRestoreBeforeFirstTask:
+	load_x  sp, xISRStackTop
+	/* portSAVE_S1_S11_REG is called into portSAVE_MACHINE_SATE macro */
+	portRESTORE_MACHINE_SATE
+	portRESTORE_Ax_REG
+	portRESTORE_MAIN_REG
+	portRESTORE_Tx_REG
+	load_x  ra, PORT_CONTEXT_mepcOFFSET(sp) /* Note for starting the scheduler the exception return address is used as the function return address. */
+	load_x  x2, PORT_CONTEXT_xOFFSET(2)(sp)
+	ret
+	.endfunc
+/*-----------------------------------------------------------*/
+
+
+.align 8
+.func
+vPortMoveStack:
+  beqz 	a2, 2f
+  mv	t0, sp
+  bgt 	a0, t0, 2f 
+  sub 	t1, t0, a1
+  mv 	sp, t1
+
+1:
+  load_x	t2, 0(t0)
+  store_x	t2, 0(t1)
+  addi t0, t0, PORT_REGISTER_SIZEOF
+  addi t1, t1, PORT_REGISTER_SIZEOF
+  blt  t0, a0, 1b
+2:
 	ret
 	.endfunc
 /*-----------------------------------------------------------*/
