@@ -50,7 +50,8 @@ StackType_t xISRStackTop;
 uint64_t ullNextTime = 0ULL;
 const uint64_t *pullNextTime = &ullNextTime;
 const size_t uxTimerIncrementsForOneTick = ( size_t ) ( configCPU_CLOCK_HZ / configTICK_RATE_HZ ); /* Assumes increment won't go over 32-bits. */
-volatile uint64_t * const pullMachineTimerCompareRegister = ( volatile uint64_t * const ) ( configCLINT_BASE_ADDRESS + 0x4000 );
+//volatile uint64_t * const pullMachineTimerCompareRegister = ( volatile uint64_t * const ) ( configCLINT_BASE_ADDRESS + 0x4000 );
+volatile uint64_t * pullMachineTimerCompareRegister;
 volatile uint64_t * const pullMachineTimerRegister        = ( volatile uint64_t * const ) ( configCLINT_BASE_ADDRESS + 0xBFF8 );
 
 /* Set configCHECK_FOR_STACK_OVERFLOW to 3 to add ISR stack checking to task
@@ -80,7 +81,9 @@ task stack, not the ISR stack). */
 
 BaseType_t xPortFreeRTOSInit( StackType_t xIsrTop )
 {
-	BaseType_t xPortMoveISRStackTop( StackType_t *xISRStackTop);
+	UBaseType_t uxHartid;
+
+	extern BaseType_t xPortMoveISRStackTop( StackType_t *xISRStackTop);
 
 	/*
 	* xIsrStack Is a Buffer Allocated into Application
@@ -120,6 +123,10 @@ BaseType_t xPortFreeRTOSInit( StackType_t xIsrTop )
         configASSERT( ( xISRStackTop & portBYTE_ALIGNMENT_MASK ) == 0 );
 	}
 	#endif /* configASSERT_DEFINED */
+
+    __asm__ __volatile__ ("csrr %0, mhartid" : "=r"(uxHartid));
+
+	pullMachineTimerCompareRegister = ( volatile uint64_t *) ( configCLINT_BASE_ADDRESS + 0x4000 + uxHartid * sizeof(uint64_t) );
 
 #if( configCLINT_BASE_ADDRESS != 0 )
 	/* There is a clint then interrupts can branch directly to the FreeRTOS 
