@@ -65,9 +65,17 @@ typedef portBASE_TYPE BaseType_t;
 typedef portUBASE_TYPE UBaseType_t;
 typedef portUBASE_TYPE TickType_t;
 
-/* 32-bit tick type on a 32-bit architecture, so reads of the tick count do
+#if __riscv_xlen == 64
+/* 64-bit tick type on a 64-bit architecture, so reads of the tick count do
 not need to be guarded with a critical section. */
-#define portTICK_TYPE_IS_ATOMIC 1
+	#define portTICK_TYPE_IS_ATOMIC 		1
+#elif __riscv_xlen == 32
+/* 64-bit tick type on a 32-bit architecture, so reads of the tick count need 
+to be guarded with a critical section. */
+	#define portTICK_TYPE_IS_ATOMIC 		0
+#else
+	#error __riscv_xlen is not defined
+#endif
 /*-----------------------------------------------------------*/
 
 /* Architecture specifics. */
@@ -89,7 +97,6 @@ extern void vTaskSwitchContext( void );
 #define portYIELD_FROM_ISR( x ) portEND_SWITCHING_ISR( x )
 /*-----------------------------------------------------------*/
 
-
 /* Critical section management. */
 #define portCRITICAL_NESTING_IN_TCB					1
 extern void vTaskEnterCritical( void );
@@ -101,7 +108,6 @@ extern void vTaskExitCritical( void );
 #define portENABLE_INTERRUPTS()		__asm volatile( "csrs mstatus, 8" )
 #define portENTER_CRITICAL()	vTaskEnterCritical()
 #define portEXIT_CRITICAL()		vTaskExitCritical()
-
 /*-----------------------------------------------------------*/
 
 /* Architecture specific optimisations. */
@@ -125,8 +131,6 @@ extern void vTaskExitCritical( void );
 	#define portGET_HIGHEST_PRIORITY( uxTopPriority, uxReadyPriorities ) uxTopPriority = ( 31UL - __builtin_clz( uxReadyPriorities ) )
 
 #endif /* configUSE_PORT_OPTIMISED_TASK_SELECTION */
-
-
 /*-----------------------------------------------------------*/
 
 /* Task function macros as described on the FreeRTOS.org WEB site.  These are
@@ -134,7 +138,6 @@ not necessary for to use this port.  They are defined so the common demo files
 (which build with all the ports) will build. */
 #define portTASK_FUNCTION_PROTO( vFunction, pvParameters ) void vFunction( void *pvParameters )
 #define portTASK_FUNCTION( vFunction, pvParameters ) void vFunction( void *pvParameters )
-
 /*-----------------------------------------------------------*/
 
 #define portNOP() __asm volatile 	( " nop " )

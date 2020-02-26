@@ -55,14 +55,64 @@
  * registers.
  *
  */
-#include "portISR_CONTEXT.h"
+
+/* ------------------------------------------------------------------
+ * This file is part of the FreeRTOS distribution and was contributed
+ * to the project by SiFive
+ * ------------------------------------------------------------------
+ */
+#ifndef __riscv_xlen
+#error Missing __riscv_xlen
+#endif
+
+#if __riscv_xlen == 64
+	#define store_x sd
+	#define load_x ld
+#elif __riscv_xlen == 32
+	#define store_x sw
+	#define load_x lw
+#else
+	#error __riscv_xlen with an unsupported value
+#endif
 
 #include "freertos_risc_v_chip_specific_extensions.h"
+
+
+/* integer registers */
+#define portWORD_SIZE        (__riscv_xlen / 8)
+
+#if defined(__riscv_flen)
+/* how large are floating point registers */
+#define PORT_FPU_REGISTER_SIZEOF  (__riscv_flen / 8)
+#endif
+
+/* Number of FPU register */
+/* FPU is not yet  supported so PORT_FPU_REGISTER = 0 */
+#define PORT_FPU_REGISTER	  0
+
+#define PORT_CONTEXT_xIDX(X)		(X) /* index into "raw" for register x? */
+#define PORT_CONTEXT_mcauseIDX		(32)
+#define PORT_CONTEXT_mepcIDX		(33)
+#define PORT_CONTEXT_mstatusIDX		(34)
+#define PORT_CONTEXT_rufIDX			(35)
+#define PORT_CONTEXT_fpuIDX(X)		(36 + X)
+#define PORT_CONTEXT_lastIDX		(36 + PORT_FPU_REGISTER + portasmADDITIONAL_CONTEXT_SIZE)
+
+/* used in assembler, as byte offsets from the start of the context */
+#define PORT_CONTEXT_xOFFSET( X )   (PORT_CONTEXT_xIDX(X)    * portWORD_SIZE)
+#define PORT_CONTEXT_mcauseOFFSET   (PORT_CONTEXT_mcauseIDX  * portWORD_SIZE)
+#define PORT_CONTEXT_mepcOFFSET     (PORT_CONTEXT_mepcIDX    * portWORD_SIZE)
+#define PORT_CONTEXT_mstatusOFFSET  (PORT_CONTEXT_mstatusIDX * portWORD_SIZE)
+#define PORT_CONTEXT_rufOFFSET   	(PORT_CONTEXT_rufIDX  	 * portWORD_SIZE)
+#define PORT_CONTEXT_fpuOFFSET(X) 	(PORT_CONTEXT_fpuIDX(X)  * portWORD_SIZE)
+/* total size of the structure usable in ASM. */
+#define PORT_CONTEXT_SIZEOF         ((36 + PORT_FPU_REGISTER) * portWORD_SIZE)
+
 
 /* Check the freertos_risc_v_chip_specific_extensions.h and/or command line
 definitions. */
 #ifndef portasmHAS_CLINT
-	#error portasmHAS_CLINT must be defined in freertos_risc_v_chip_specific_extensions.h.
+	#error freertos_risc_v_chip_specific_extensions.h must define portasmHAS_CLINT to either 1 (CLINT present) or 0 (clint not present).
 #endif
 
 #ifndef portHANDLE_INTERRUPT
@@ -75,8 +125,9 @@ definitions. */
 
 .global xPortStartFirstTask
 .global freertos_risc_v_trap_handler
-.global vPortMoveStack
+.global xPortMoveStack
 .global xPortRestoreBeforeFirstTask
+.global pxPortInitialiseStack
 
 .extern pxCurrentTCB
 .extern vTaskSwitchContext
@@ -158,7 +209,7 @@ definitions. */
 	.endm
 
 .macro portSAVE_MAIN_REG
-	/* x1 to x31 need to be saved */
+	/* x1			ra			Return address */
 	store_x  x1,  PORT_CONTEXT_xOFFSET(1)(sp)
 	/* x2 Should be save after this macro */
 	/* x3			gp			Global pointer */
@@ -167,8 +218,6 @@ definitions. */
 	store_x  x4,  PORT_CONTEXT_xOFFSET(4)(sp)
 	/* x8			s0/fp		Saved register/Frame pointer */
 	store_x  x8,  PORT_CONTEXT_xOFFSET(8)(sp)
-
-	portasmSAVE_ADDITIONAL_REGISTERS	/* Defined in freertos_risc_v_chip_specific_extensions.h to save any registers unique to the RISC-V implementation. */
 	.endm
 
 .macro portSAVE_MACHINE_SATE
@@ -180,6 +229,8 @@ definitions. */
 	store_x s2, PORT_CONTEXT_mcauseOFFSET(sp)
 	store_x s3, PORT_CONTEXT_mepcOFFSET(sp)
 	store_x s4, PORT_CONTEXT_mstatusOFFSET(sp)
+
+	portasmSAVE_ADDITIONAL_REGISTERS	/* Defined in freertos_risc_v_chip_specific_extensions.h to save any registers unique to the RISC-V implementation. */
 	.endm
 
 /*************************************************************/
@@ -224,8 +275,6 @@ definitions. */
 	.endm
 
 .macro portRESTORE_MAIN_REG
-	portasmRESTORE_ADDITIONAL_REGISTERS	/* Defined in freertos_risc_v_chip_specific_extensions.h to restore any registers unique to the RISC-V implementation. */
-
 	/* x1 to x31 need to be saved */
 	load_x  x1,  PORT_CONTEXT_xOFFSET(1)(sp)
 	/* x3			gp			Global pointer */
@@ -237,6 +286,7 @@ definitions. */
 	.endm
 
 .macro portRESTORE_MACHINE_SATE
+	portasmSAVE_ADDITIONAL_REGISTERS	/* Defined in freertos_risc_v_chip_specific_extensions.h to save any registers unique to the RISC-V implementation. */
 	load_x  s3, PORT_CONTEXT_mepcOFFSET(sp)
 	load_x  s4, PORT_CONTEXT_mstatusOFFSET(sp)
 	csrw	mepc, s3
@@ -286,9 +336,9 @@ handle_exception:
 	 */
 
 	addi	t0, t0, -8
-	blt		t0, x0, is_exception /* sp < 8, must be fault */
+	blt		t0, x0, is_exception /* mcause < 8, must be fault */
 	addi	t0, t0, -4
-	blt		t0, x0, yeild_call
+	blt		t0, x0, ecall_yield
 
 is_exception:
 	/* restore t0 and save sp in mscratch. */
@@ -308,11 +358,15 @@ is_exception:
 	store_x	t0, PORT_CONTEXT_xOFFSET(2)(sp)
 	/* Execption is treated by freedom metal functions */
 	jal portHANDLE_EXCEPTION
-infinite_loop:
-	ebreak
-	j	infinite_loop
+	/* portSAVE_S1_S11_REG is called into portSAVE_MACHINE_SATE macro */
+	portRESTORE_MACHINE_SATE
+	portRESTORE_Tx_REG
+	portRESTORE_Ax_REG
+	portRESTORE_MAIN_REG
+	load_x  x2, PORT_CONTEXT_xOFFSET(2)(sp)
+	mret
 
-yeild_call:
+ecall_yield:
 	addi	sp, sp, -PORT_CONTEXT_SIZEOF
 	portSAVE_MAIN_REG
 	portSAVE_Ax_REG
@@ -325,7 +379,6 @@ yeild_call:
 	 * s3 = mepc
 	 * s4 = mstatus
 	 * s9 will be use for pxCurrentTCB
-	 * s10 will be use for if we call vTaskSwitchContext
 	 * s11 will be use to save sp
 	 */
 	addi	t0, s3, 4						/* Synchronous so updated exception return address to the instruction after the instruction that generated the exeption. */
@@ -356,7 +409,6 @@ handle_interrupt:
 	 * s3 = mepc
 	 * s4 = mstatus
 	 * s9 will be use for pxCurrentTCB
-	 * s10 will be use to save ISR_sp
 	 * s11 will be use to save sp
 	 */
 
@@ -415,16 +467,17 @@ restore_before_exit:
 #if( configUSE_SEGGER_SYSTEMVIEW == 1 )
 	jal SYSVIEW_RECORD_EXIT_ISR
 #endif
-	mv	s10, sp
 	mv  sp, s11
 	j end_trap_handler
 
 test_if_external_interrupt:			/* If there is a CLINT and the mtimer interrupt is not pending then check to see if an external interrupt is pending. */
 	addi t1, t1, 4					/* 0x80000007 + 4 = 0x8000000b == Machine external interrupt. */
 	bne s2, t1, unrecoverable_error	/* Something as yet unhandled. */
+	j unrecoverable_error
 
 #endif /* portasmHAS_CLINT */
 
+external_interrupt:
 	csrr 	a0, mhartid
 	mv		a1, s2
 	mv 		a2, s5
@@ -465,7 +518,7 @@ end_trap_handler:
 .func
 xPortStartFirstTask:
 	/*
-	 * Save all register to space before xISRStackTop (it should be prepared by vPortFreeRTOSInit).
+	 * Save all register to space before xISRStackTop (it should be prepared by xPortFreeRTOSInit).
 	 * It will be restored when vPortEndScheduler will be call
 	 */
 	load_x  sp, xISRStackTop
@@ -473,38 +526,27 @@ xPortStartFirstTask:
 	portSAVE_Ax_REG
 	portSAVE_Tx_REG
 	portSAVE_MACHINE_SATE
-	/* s2 = mcause
-	 * s3 = mepc
-	 * s4 = mstatus
-	 * s9 will be use for pxCurrentTCB
-	 * s10 will be use for if we call vTaskSwitchContext
-	 * s11 will be use to save sp
-	 */
 	store_x	x1, PORT_CONTEXT_mepcOFFSET(sp) 
 	/* Store the value of sp when the interrupt occur */
 	addi 	t0, sp, PORT_CONTEXT_SIZEOF
 	store_x t0, PORT_CONTEXT_xOFFSET(2)(sp)
 
-	/*
-	 * Retore the Context from the TCB of the task (pxCurrentTCB)
-	 */
+	/** Set all register to the FirstTask context */
 	load_x  t0, pxCurrentTCB			/* Load pxCurrentTCB. */
 	load_x  sp, 0( t0 )				 	/* Read sp from first TCB member. */
 
 	/* x1			ra			Return address */
 	store_x  x1,  PORT_CONTEXT_xOFFSET(1)(sp)
 
-	load_x  t0, pxCurrentTCB			/* Load pxCurrentTCB. */
-	load_x  sp, 0( t0 )				 	/* Read sp from first TCB member. */
-
-	load_x  t1,  PORT_CONTEXT_xOFFSET(2)(sp)
-	store_x  t1, 0( t0 )				/* Write sp saved value to first TCB member. */
-
 	/* portSAVE_S1_S11_REG is called into portSAVE_MACHINE_SATE macro */
 	portRESTORE_MACHINE_SATE
 	portRESTORE_Ax_REG
 	portRESTORE_MAIN_REG
-	
+
+	/* Restore first TCB member */
+	load_x  t1,  PORT_CONTEXT_xOFFSET(2)(sp)
+	store_x  t1, 0( t2 )				/* Write sp saved value to first TCB member. */
+
 	load_x t0, pullMachineTimerRegister  /* Load address of compare register into t0. */
 	load_x t1, pullNextTime  		/* Load the address of ullNextTime into t1. */
 
@@ -551,10 +593,87 @@ first_task_timer_loop:
 	load_x  ra, PORT_CONTEXT_mepcOFFSET(sp) /* Note for starting the scheduler the exception return address is used as the function return address. */
 	load_x  x2, PORT_CONTEXT_xOFFSET(2)(sp)
 
+	mret
+	.endfunc
+/*-----------------------------------------------------------*/
+
+
+/**
+ * StackType_t *pxPortInitialiseStack( StackType_t *pxTopOfStack, TaskFunction_t pxCode, void *pvParameters )
+ **/
+.align 8
+.func
+pxPortInitialiseStack:
+	/*
+	 * To maintain RISCV ABI stack alignment requirements(16bytes)
+	 * this data structure must be a MULTIPLE of 16 bytes in size.
+	 * 32 Registers is 16byte aligned :)
+	 * We add portADDITIONAL_CONTEXT_REGS  that Must be multiple of 4.
+	 * mcause 33rd register
+	 * mepc 34th register 
+	 * mstatus 35th register
+	 * ruf 36th register
+	 */
+	csrr t0, mstatus					/* Obtain current mstatus value. */
+	addi t1, x0, 0x188					/* Generate the value 0x1880, which are the MPIE and MPP bits to set in mstatus. */
+	slli t1, t1, 4
+	or t0, t0, t1						/* Set MPIE and MPP bits in mstatus value. */
+
+	mv t2, a0							/* Save a0 as TopOfStack */
+
+	addi a0, a0, -portWORD_SIZE	/* Space for ruf + move to @ for mstatus */
+	store_x x0, 0(a0)					/* clear ruf  */
+	addi a0, a0, portWORD_SIZE	/* Space for ruf + move to @ for mstatus */
+	store_x t0, 0(a0)					/* mstatus onto the stack. */
+	addi a0, a0, -portWORD_SIZE
+	store_x a1, 0(a0)					/* mret value (pxCode parameter) onto the stack. */
+	addi a0, a0, -portWORD_SIZE
+
+	addi t0, x0, portasmADDITIONAL_CONTEXT_SIZE /* The number of chip specific additional registers. */
+chip_specific_stack_frame:				/* First add any chip specific registers to the stack frame being created. */
+	beq t0, x0, 1f						/* No more chip specific registers to save. */
+	addi a0, a0, -portWORD_SIZE			/* Make space for chip specific register. */
+	store_x x0, 0(a0)					/* Give the chip specific register an initial value of zero. */
+	addi t0, t0, -1						/* Decrement the count of chip specific registers remaining. */
+	j chip_specific_stack_frame			/* Until no more chip specific registers. */
+1:
+	/* Space for registers x11-x31. */
+	li t0, 21
+2:
+	beq t0, x0, 3f						/* No more registers to save. */
+	addi a0, a0, -portWORD_SIZE
+	store_x x0, 0(a0)					/* Give the register an initial value of zero. */
+	addi t0, t0, -1						/* Decrement the count of registers remaining. */
+	j 2b
+3:
+	addi a0, a0, -portWORD_SIZE
+	store_x a2, 0(a0)					/* Task parameters (pvParameters parameter) goes into register X10/a0 on the stack. */
+
+	/* Space for registers x5-x9. */
+	li t0, 5
+4:
+	beq t0, x0, 5f						/* No more registers to save. */
+	addi a0, a0, -portWORD_SIZE
+	store_x x0, 0(a0)					/* Give the register an initial value of zero. */
+	addi t0, t0, -1						/* Decrement the count of registers remaining. */
+	j 4b
+5:
+
+	addi a0, a0, -portWORD_SIZE
+	store_x x4, 0(a0)					/* Store TP register */
+	addi a0, a0, -portWORD_SIZE
+	store_x x3, 0(a0)					/* Store GP register */
+	addi a0, a0, -portWORD_SIZE
+	store_x t2, 0(a0)					/* Store SP register: value store is the value before store the context */
+	addi a0, a0, -(2 * portWORD_SIZE)	/* a will contain the new value of pxTopOfStack */
+
 	ret
 	.endfunc
 /*-----------------------------------------------------------*/
 
+/**
+ * void xPortRestoreBeforeFirstTask(void)
+ */
 .align 8
 .func
 xPortRestoreBeforeFirstTask:
@@ -570,23 +689,32 @@ xPortRestoreBeforeFirstTask:
 	.endfunc
 /*-----------------------------------------------------------*/
 
-
+/**
+ * BaseType_t xPortMoveStack( StackType_t xStackTop, UBaseType_t xStackLength);
+ */
 .align 8
 .func
-vPortMoveStack:
-  beqz 	a2, 2f
-  mv	t0, sp
-  bgt 	a0, t0, 2f 
-  sub 	t1, t0, a1
-  mv 	sp, t1
+xPortMoveStack:	
+	beqz a1, 2f
+	li t0, PORT_CONTEXT_lastIDX
+	add t1, a1, t0 
+	bltu t1, a1, 2f
+	mv	t0, sp
+	bgt	t0, a0, 2f 
+	sub	t1, t0, t1
+	mv 	sp, t1
 
 1:
-  load_x	t2, 0(t0)
-  store_x	t2, 0(t1)
-  addi t0, t0, PORT_REGISTER_SIZEOF
-  addi t1, t1, PORT_REGISTER_SIZEOF
-  blt  t0, a0, 1b
+	load_x	t2, 0(t0)
+	store_x	t2, 0(t1)
+	addi t0, t0, portWORD_SIZE
+	addi t1, t1, portWORD_SIZE
+	blt  t0, a0, 1b
+	li	a0, PORT_CONTEXT_lastIDX
+	j 3f
 2:
+	li	a0, 0
+3:
 	ret
 	.endfunc
 /*-----------------------------------------------------------*/

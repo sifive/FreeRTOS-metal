@@ -34,9 +34,8 @@
 #include <stdio.h>
 #include "task.h"
 #include "portmacro.h"
-#include "portISR_CONTEXT.h"
 #include "string.h"
-#include <metal/machine.h>
+
 
 /*
  * xISRStackTop must be declared elsewhere.
@@ -77,18 +76,20 @@ task stack, not the ISR stack). */
 #endif /* configCHECK_FOR_STACK_OVERFLOW > 2 */
 /*-----------------------------------------------------------*/
 
-void vPortFreeRTOSInit( StackType_t xTopOfStack )
+BaseType_t xPortFreeRTOSInit( StackType_t xTopOfStack )
 {
-#ifndef configISR_STACK_SIZE
-# define configISR_STACK_SIZE            0
-#endif
+	#ifndef configISR_STACK_SIZE
+	# define configISR_STACK_SIZE            0
+	#endif
 
-#if( configISR_STACK_SIZE == 0)
-	BaseType_t xISRStackLength = 0x100;
-#else
-	BaseType_t xISRStackLength = configISR_STACK_SIZE;
-#endif
-	extern void vPortMoveStack( StackType_t, BaseType_t );
+	#if( configISR_STACK_SIZE == 0)
+	UBaseType_t xISRStackLength = 0x100;
+	#else
+	UBaseType_t xISRStackLength = configISR_STACK_SIZE;
+	#endif
+
+	BaseType_t xValue;
+	extern BaseType_t xPortMoveStack( StackType_t xStackTop, UBaseType_t xStackLength);
 
 	/*
 	 * stack mapping before :
@@ -119,20 +120,21 @@ void vPortFreeRTOSInit( StackType_t xTopOfStack )
 	 * 		Bottom    +----------------------+
 	 */
 
-	xISRStackLength += PORT_CONTEXT_SIZEOF;
+	xValue = xPortMoveStack(xTopOfStack, xISRStackLength);
 
-	vPortMoveStack(xTopOfStack, xISRStackLength);
+	if ( 0 == xValue ) {
+		return -1;
+	}
+	xISRStackTop = xTopOfStack + xValue;
 
-	xISRStackTop = xTopOfStack + PORT_CONTEXT_SIZEOF;
-
-#if( configASSERT_DEFINED == 1 )
-{
+	#if( configASSERT_DEFINED == 1 )
+	{
         /* Check alignment of the interrupt stack - which is the same as the
         stack that was being used by main() prior to the scheduler being
         started. */
         configASSERT( ( xISRStackTop & portBYTE_ALIGNMENT_MASK ) == 0 );
-}
-#endif /* configASSERT_DEFINED */
+	}
+	#endif /* configASSERT_DEFINED */
 
 #if( configCLINT_BASE_ADDRESS != 0 )
 	/* There is a clint then interrupts can branch directly to the FreeRTOS 
@@ -143,6 +145,7 @@ void vPortFreeRTOSInit( StackType_t xTopOfStack )
 #else
 # warning "*** The interrupt controller must to be configured before (ouside of this file). ***"
 #endif
+	return 0;
 }
 /*-----------------------------------------------------------*/
 
@@ -185,36 +188,4 @@ void vPortEndScheduler( void )
 	 */
 	for( ;; );
 }
-
-StackType_t *pxPortInitialiseStack( StackType_t *pxTopOfStack, TaskFunction_t pxCode, void *pvParameters )
-{
-    uintptr_t tmp;
-    union portRISCV_CONTEXT *pContext;
-
-#if( portSTACK_GROWTH < 0 )
-    tmp = (uintptr_t)((portBASE_TYPE)pxTopOfStack - sizeof(union portRISCV_CONTEXT));
-    pContext = (union portRISCV_CONTEXT *)(tmp);
-    memset( (void *)(pContext), 0, sizeof(union portRISCV_CONTEXT) );
-#else
-    pContext = (union portRISCV_CONTEXT *)(tpxTopOfStackmp);
-    memset( (void *)(pContext), 0, sizeof(union portRISCV_CONTEXT) );
-#endif
-
-    pContext->named.x[10] = (uintptr_t)(pvParameters); /* A0 */
-    pContext->named.x[2]  = (uintptr_t)(pxTopOfStack);     /* X2 - stack pointer */
-
-    __asm__ __volatile__ ("csrr %0, mcause" : "=r"(tmp));
-    tmp |= 0x1880; /* enable MPIE and MPP */
-    pContext->named.mstatus = tmp;
-
-    __asm__ __volatile__ ("mv %0,x3" : "=r"(tmp) );
-    pContext->named.x[3] = tmp; /* X3 = GP */
-    __asm__ __volatile__ ("mv %0,x4" : "=r"(tmp) );
-    pContext->named.x[4] = tmp; /* X4 = TP */
-    pContext->named.mepc  = (uintptr_t)(pxCode);
-
-#if defined(PORT_INIT_CONTEXT_EXTRA)
-    PORT_INIT_CONTEXT_EXTRA(pContext);
-#endif
-    return (StackType_t *)(pContext);
-}
+/*-----------------------------------------------------------*/
