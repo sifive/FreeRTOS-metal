@@ -5,23 +5,11 @@ override SOURCE_DIR := $(CURRENT_DIR)/FreeRTOS-Kernel
 BUILD_DIR ?= $(CURRENT_DIR)/build
 override INCLUDE_DIR := $(CURRENT_DIR)/FreeRTOS-Kernel/include
 
-include scripts/FreeRTOS.mk
+include scripts/FreeRTOS_core.mk
 
 ################################################################################
-#                        COMPILATION FLAGS
+#                                CHECKS
 ################################################################################
-
-# ifeq ($(RISCV_ARCH),)
-# 	ERR = $(error Please specify -march by using RISCV_ARCH variable )
-# endif
-
-# ifeq ($(RISCV_ABI),)
-# 	ERR = $(error Please specify -mabi by using RISCV_ABI variable )
-# endif
-
-# ifeq ($(RISCV_CMODEL),)
-# 	ERR = $(error Please specify -mcmodel by using RISCV_CMODEL variable )
-# endif
 
 ifeq ($(portHANDLE_INTERRUPT),)
 	ERR = $(error Please specify portHANDLE_INTERRUPT by using portHANDLE_INTERRUPT variable )
@@ -43,29 +31,33 @@ ifeq ($(FREERTOS_CONFIG_DIR),)
 	ERR = $(error Please specify FreeRTOSConfig.h driectory by using FREERTOS_CONFIG_DIR variable ) 
 endif
 
-# override CFLAGS +=  -march=$(RISCV_ARCH) \
-# 					-mabi=$(RISCV_ABI) \
-# 					-mcmodel=$(RISCV_CMODEL) \
-# 					-ffunction-sections \
-# 					-fdata-sections \
-# 					-finline-functions \
-# 					--specs=nano.specs 
+################################################################################
+#                                HEADER TEMPLATE
+################################################################################
 
-override CFLAGS += 	-DMTIME_RATE_HZ=$(MTIME_RATE_HZ) \
-					-DportHANDLE_INTERRUPT=$(portHANDLE_INTERRUPT) \
-					-DportHANDLE_EXCEPTION=$(portHANDLE_EXCEPTION) \
-					-DMTIME_CTRL_ADDR=$(MTIME_CTRL_ADDR)
+HEADER_TEMPLATES := $(CURRENT_DIR)/templates/Bridge_Freedom-metal_FreeRTOS.h.in
 
-# override IFLAGS = $(foreach dir,$(INCLUDE_DIRS),-I $(dir)) -I $(FREERTOS_CONFIG_DIR)
+override INCLUDE_DIRS += $(BUILD_DIR)/include
 
+################################################################################
+#                        COMPILATION FLAGS
+################################################################################
 override CFLAGS += $(foreach dir,$(INCLUDE_DIRS),-I $(dir)) -I $(FREERTOS_CONFIG_DIR)
 
 override ASFLAGS = $(CFLAGS)
 
 ifeq ($(origin ARFLAGS),default)
-	override ARFLAGS :=	cru
+	ifeq ($(VERBOSE),TRUE)
+		override ARFLAGS :=	cruv
+	else
+		override ARFLAGS :=	cru
+	endif
 else
-	ARFLAGS ?= cru
+	ifeq ($(VERBOSE),TRUE)
+		ARFLAGS ?= cruv
+	else
+		ARFLAGS ?= cru
+	endif
 endif
 
 ################################################################################
@@ -81,38 +73,33 @@ endif
 #                                RULES
 ################################################################################
 
-libFreeRTOS.a : $(OBJS)
-	$(HIDE) $(HIDE) mkdir -p $(BUILD_DIR)/lib
+libFreeRTOS.a : headers $(OBJS)
+	$(HIDE) mkdir -p $(BUILD_DIR)/lib
 	$(HIDE) $(AR) $(ARFLAGS) $(BUILD_DIR)/lib/libFreeRTOS.a $(OBJS)
 
-$(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.c err
+headers :
+	$(HIDE) mkdir -p $(BUILD_DIR)/include
+	python3 $(CURRENT_DIR)/scripts/parser_auto_header.py --input_file $(HEADER_TEMPLATES) --output_dir $(BUILD_DIR)/include
+
+$(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.c err headers
 	$(HIDE) mkdir -p $(dir $@)
 	$(HIDE) $(CC) -c -o $@ $(CFLAGS) $<
 
-$(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.S err
+$(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.S err headers
 	$(HIDE) mkdir -p $(dir $@)
 	$(HIDE) $(CC) -D__ASSEMBLY__ -c -o $@ $(ASFLAGS) $<
 
-$(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.s err
+$(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.s err headers
 	$(HIDE) mkdir -p $(dir $@)
 	$(HIDE) $(CC) -D__ASSEMBLY__ -c -o $@ $(ASFLAGS) $<
 
-$(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.asm err
+$(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.asm err headers
 	$(HIDE) mkdir -p $(dir $@)
 	$(HIDE) $(CC) -D__ASSEMBLY__ -c -o $@ $(ASFLAGS) $<
 
-.PHONY : print_info
-print_info:
-	$(info ASM_SOURCES:$(ASM_SOURCES))
-	$(info ASM_OBJS:$(ASM_OBJS))
-
-	$(info .S:$(filter %.S,$(ASM_SOURCES)))
-	$(info .s:$(filter %.s,$(ASM_SOURCES)))
-	$(info .asm:$(filter %.asm,$(ASM_SOURCES)))
-
-	$(info subst .S:)
-	$(info subst .S:$(subst $(SOURCE_DIR),$(BUILD_DIR), $(patsubst %.s,%.o,$(filter %.s,$(ASM_SOURCES)))))
-	$(info subst .S:$(subst $(SOURCE_DIR),$(BUILD_DIR), $(patsubst %.asm,%.o,$(filter %.asm,$(ASM_SOURCES)))))
+.PHONY: test_config_file
+test_config_file: 
+	$(ERR)
 
 .PHONY: err
 err: 

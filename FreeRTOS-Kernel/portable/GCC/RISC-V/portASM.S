@@ -74,6 +74,7 @@
 #else
 	#error __riscv_xlen with an unsupported value
 #endif
+#include "FreeRTOSConfig.h"
 
 #include "freertos_risc_v_chip_specific_extensions.h"
 
