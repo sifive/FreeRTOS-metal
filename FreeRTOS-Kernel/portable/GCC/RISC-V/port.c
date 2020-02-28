@@ -25,9 +25,15 @@
  * 1 tab == 4 spaces!
  */
 
-/*-----------------------------------------------------------
- * Implementation of functions defined in portable.h for the RISC-V RV32 port.
- *----------------------------------------------------------*/
+/* ------------------------------------------------------------------
+ * This file is part of the FreeRTOS distribution and was contributed
+ * to the project by SiFive
+ * 
+ * Implementation of functions defined in portable.h for the RISC-V 
+ * RV32 port.
+ * ------------------------------------------------------------------
+ */
+
 
 /* Scheduler includes. */
 #include "FreeRTOS.h"
@@ -36,11 +42,7 @@
 #include "portmacro.h"
 #include "string.h"
 
-
-/*
- * xISRStackTop must be declared elsewhere.
- */
-extern StackType_t xISRStackTop;
+StackType_t xISRStackTop;
 
 /*-----------------------------------------------------------*/
 
@@ -76,56 +78,39 @@ task stack, not the ISR stack). */
 #endif /* configCHECK_FOR_STACK_OVERFLOW > 2 */
 /*-----------------------------------------------------------*/
 
-BaseType_t xPortFreeRTOSInit( StackType_t xTopOfStack )
+BaseType_t xPortFreeRTOSInit( StackType_t xIsrTop )
 {
-	#ifndef configISR_STACK_SIZE
-	# define configISR_STACK_SIZE            0
-	#endif
-
-	#if( configISR_STACK_SIZE == 0)
-	UBaseType_t xISRStackLength = 0x100;
-	#else
-	UBaseType_t xISRStackLength = configISR_STACK_SIZE;
-	#endif
-
-	BaseType_t xValue;
-	extern BaseType_t xPortMoveStack( StackType_t xStackTop, UBaseType_t xStackLength);
+	BaseType_t xPortMoveISRStackTop( StackType_t *xISRStackTop);
 
 	/*
-	 * stack mapping before :
-	 * 		Top stack +----------------------+ xTopOfStack
-	 * 		          | stack allocation     |
-	 * 		          | before this function |
-	 * 		          | Call Stack_SYS       |
-	 * 		          +----------------------+
-	 * 		          | ....                 |
-	 * 		          |                      |
-	 * 		Bottom    +----------------------+
-	 *
-	 * stack mapping after :
-	 * 		Top stack +----------------------+ xTopOfStack
-	 * 		          | Space to store       |
-	 * 		          | context before       |
-	 * 		          | FreeRtos scheduling  |
-	 * 		          +----------------------+ xISRStackTop
-	 * 		          | stack space for      |
-	 * 		          | ISR execution        |
-	 * 		          +----------------------+
-	 * 		          | stack allocation     |
-	 * 		          | before this function |
-	 * 		          | Call Stack_SYS       |
-	 * 		          +----------------------+
-	 * 		          | ....                 |
-	 * 		          |                      |
-	 * 		Bottom    +----------------------+
-	 */
+	* xIsrStack Is a Buffer Allocated into Application
+	* it will contain  the isrstack and space or the registeries backup
+	*
+	*                 Top +----------------------+ xIsrTop
+	*                     | ....                 |
+	*                     |                      |
+	*              Bottom +----------------------+ xISRStack
+	*
+	* stack mapping after :
+	*                 Top +----------------------+ xIsrTop
+	*                     | Space to store       |
+	*                     | context before       |
+	*                     | FreeRtos scheduling  |
+	*                     | ....                 |
+	*                     +----------------------+ xISRStackTop
+	*                     | stack space for      |
+	*                     | ISR execution        |
+	*                     | ....                 |
+	*                     |                      |
+	*              Bottom +----------------------+ xISRStack
+	*/
 
-	xValue = xPortMoveStack(xTopOfStack, xISRStackLength);
+	xISRStackTop = xIsrTop;
 
-	if ( 0 == xValue ) {
+	if ( 0 == xPortMoveISRStackTop(&xISRStackTop)){
+		/* Error no enough place to store cntext or bad parameter */
 		return -1;
 	}
-	xISRStackTop = xTopOfStack + xValue;
 
 	#if( configASSERT_DEFINED == 1 )
 	{

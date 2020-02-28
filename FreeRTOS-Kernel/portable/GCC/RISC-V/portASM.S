@@ -88,7 +88,7 @@
 
 /* Number of FPU register */
 /* FPU is not yet  supported so PORT_FPU_REGISTER = 0 */
-#define PORT_FPU_REGISTER	  0
+#define portasmFPU_CONTEXT_SIZE	  0
 
 #define PORT_CONTEXT_xIDX(X)		(X) /* index into "raw" for register x? */
 #define PORT_CONTEXT_mcauseIDX		(32)
@@ -96,7 +96,7 @@
 #define PORT_CONTEXT_mstatusIDX		(34)
 #define PORT_CONTEXT_rufIDX			(35)
 #define PORT_CONTEXT_fpuIDX(X)		(36 + X)
-#define PORT_CONTEXT_lastIDX		(36 + PORT_FPU_REGISTER + portasmADDITIONAL_CONTEXT_SIZE)
+#define PORT_CONTEXT_lastIDX		(36 + portasmFPU_CONTEXT_SIZE + portasmADDITIONAL_CONTEXT_SIZE)
 
 /* used in assembler, as byte offsets from the start of the context */
 #define PORT_CONTEXT_xOFFSET( X )   (PORT_CONTEXT_xIDX(X)    * portWORD_SIZE)
@@ -106,8 +106,9 @@
 #define PORT_CONTEXT_rufOFFSET   	(PORT_CONTEXT_rufIDX  	 * portWORD_SIZE)
 #define PORT_CONTEXT_fpuOFFSET(X) 	(PORT_CONTEXT_fpuIDX(X)  * portWORD_SIZE)
 /* total size of the structure usable in ASM. */
-#define PORT_CONTEXT_SIZEOF         ((36 + PORT_FPU_REGISTER) * portWORD_SIZE)
-
+#define portasmREGISTER_CONTEXT_WORDSIZE		((36) * portWORD_SIZE)
+#define portasmADDITIONAL_CONTEXT_WORDSIZE		((portasmADDITIONAL_CONTEXT_SIZE) * portWORD_SIZE )
+#define portasmFPU_CONTEXT_WORDSIZE					((portasmFPU_CONTEXT_SIZE) * portWORD_SIZE )
 
 /* Check the freertos_risc_v_chip_specific_extensions.h and/or command line
 definitions. */
@@ -125,7 +126,7 @@ definitions. */
 
 .global xPortStartFirstTask
 .global freertos_risc_v_trap_handler
-.global xPortMoveStack
+.global xPortMoveISRStackTop
 .global xPortRestoreBeforeFirstTask
 .global pxPortInitialiseStack
 
@@ -166,22 +167,37 @@ definitions. */
  */
 
 /*-----------------------------------------------------------------*/
-
+.macro portSAVE_FpuReg
+	/* Make room for the additional FPU registers. */
+	addi sp, sp, -(portasmFPU_CONTEXT_WORDSIZE)
+	.endm
 /*************************************************************/
-.macro portSAVE_Tx_REG
-	/* x5-7			t0-2		Temporaries */
+
+.macro portRESTORE_FpuReg
+	/* Remove space added for additional fpu registers. */
+	addi sp, sp, (portasmFPU_CONTEXT_WORDSIZE)
+	.endm
+/*************************************************************/
+
+.macro portSAVE_BaseReg
+	/* Make room for the registers. */
+	addi	sp, sp, -portasmREGISTER_CONTEXT_WORDSIZE
+	/* x1(ra)			Return address */
+	store_x  x1,  PORT_CONTEXT_xOFFSET(1)(sp)
+	/* x2(sp) ***** Should be save ouside this macro */
+	/* x3(gp)			Global pointer */
+	store_x  x3,  PORT_CONTEXT_xOFFSET(3)(sp)
+	/* x4(tp)			Thread pointer */
+	store_x  x4,  PORT_CONTEXT_xOFFSET(4)(sp)
+	/* x5-7(t0-2)		Temporaries */
 	store_x  x5,  PORT_CONTEXT_xOFFSET(5)(sp)
 	store_x  x6,  PORT_CONTEXT_xOFFSET(6)(sp)
 	store_x  x7,  PORT_CONTEXT_xOFFSET(7)(sp)
-	/* x28-31		t3-6		Temporaries */
-	store_x  x28, PORT_CONTEXT_xOFFSET(28)(sp)
-	store_x  x29, PORT_CONTEXT_xOFFSET(29)(sp)
-	store_x  x30, PORT_CONTEXT_xOFFSET(30)(sp)
-	store_x  x31, PORT_CONTEXT_xOFFSET(31)(sp)
-	.endm
-
-.macro portSAVE_Ax_REG
-	/* x10-11		a0-7		Function arguments */
+	/* x8(s0/fp)		Saved register/Frame pointer */
+	store_x  x8,  PORT_CONTEXT_xOFFSET(8)(sp)
+	/* x9(s1)			Saved register */
+	store_x  x9,  PORT_CONTEXT_xOFFSET(9)(sp)
+	/* x10-17(a0-7)		Function arguments */
 	store_x  x10, PORT_CONTEXT_xOFFSET(10)(sp)
 	store_x  x11, PORT_CONTEXT_xOFFSET(11)(sp)
 	store_x  x12, PORT_CONTEXT_xOFFSET(12)(sp)
@@ -190,12 +206,7 @@ definitions. */
 	store_x  x15, PORT_CONTEXT_xOFFSET(15)(sp)
 	store_x  x16, PORT_CONTEXT_xOFFSET(16)(sp)
 	store_x  x17, PORT_CONTEXT_xOFFSET(17)(sp)
-	.endm
-
-.macro portSAVE_S1_S11_REG
-	/* x9			s1			Saved register */
-	store_x  x9,  PORT_CONTEXT_xOFFSET(9)(sp)
-	/* x18-27		s2-11		Saved registers */
+	/* x18-27(s2-11)		Saved registers */
 	store_x  x18, PORT_CONTEXT_xOFFSET(18)(sp)
 	store_x  x19, PORT_CONTEXT_xOFFSET(19)(sp)
 	store_x  x20, PORT_CONTEXT_xOFFSET(20)(sp)
@@ -206,48 +217,45 @@ definitions. */
 	store_x  x25, PORT_CONTEXT_xOFFSET(25)(sp)
 	store_x  x26, PORT_CONTEXT_xOFFSET(26)(sp)
 	store_x  x27, PORT_CONTEXT_xOFFSET(27)(sp)
-	.endm
+	/* x28-31(t3-6)		Temporaries */
+	store_x  x28, PORT_CONTEXT_xOFFSET(28)(sp)
+	store_x  x29, PORT_CONTEXT_xOFFSET(29)(sp)
+	store_x  x30, PORT_CONTEXT_xOFFSET(30)(sp)
+	store_x  x31, PORT_CONTEXT_xOFFSET(31)(sp)
 
-.macro portSAVE_MAIN_REG
-	/* x1			ra			Return address */
-	store_x  x1,  PORT_CONTEXT_xOFFSET(1)(sp)
-	/* x2 Should be save after this macro */
-	/* x3			gp			Global pointer */
-	store_x  x3,  PORT_CONTEXT_xOFFSET(3)(sp)
-	/* x4			tp			Thread pointer */
-	store_x  x4,  PORT_CONTEXT_xOFFSET(4)(sp)
-	/* x8			s0/fp		Saved register/Frame pointer */
-	store_x  x8,  PORT_CONTEXT_xOFFSET(8)(sp)
-	.endm
-
-.macro portSAVE_MACHINE_SATE
-	portSAVE_S1_S11_REG
+	/* Save mcause, mepc & mstatus state */
     csrr s2, mcause
 	csrr s3, mepc
 	csrr s4, mstatus		/* Required for MPIE bit. */
-
 	store_x s2, PORT_CONTEXT_mcauseOFFSET(sp)
 	store_x s3, PORT_CONTEXT_mepcOFFSET(sp)
 	store_x s4, PORT_CONTEXT_mstatusOFFSET(sp)
-
-	portasmSAVE_ADDITIONAL_REGISTERS	/* Defined in freertos_risc_v_chip_specific_extensions.h to save any registers unique to the RISC-V implementation. */
 	.endm
-
 /*************************************************************/
-.macro portRESTORE_Tx_REG
-	/* x5-7			t0-2		Temporaries */
+
+.macro portRESTORE_BaseReg
+	/* Restore mepc & mstatus state */
+	load_x  s3, PORT_CONTEXT_mepcOFFSET(sp)
+	load_x  s4, PORT_CONTEXT_mstatusOFFSET(sp)
+	csrw	mepc, s3
+	csrw	mstatus, s4
+
+	/* x1(ra)			Return address */
+	load_x  x1,  PORT_CONTEXT_xOFFSET(1)(sp)
+	/* x2(sp) ***** Should be restore outside this macro */
+	/* x3(gp)			Global pointer */
+	load_x  x3,  PORT_CONTEXT_xOFFSET(3)(sp)
+	/* x4(tp)			Thread pointer */
+	load_x  x4,  PORT_CONTEXT_xOFFSET(4)(sp)
+	/* x5-7(t0-2)		Temporaries */
 	load_x  x5,  PORT_CONTEXT_xOFFSET(5)(sp)
 	load_x  x6,  PORT_CONTEXT_xOFFSET(6)(sp)
 	load_x  x7,  PORT_CONTEXT_xOFFSET(7)(sp)
-	/* x28-31		t3-6		Temporaries */
-	load_x  x28, PORT_CONTEXT_xOFFSET(28)(sp)
-	load_x  x29, PORT_CONTEXT_xOFFSET(29)(sp)
-	load_x  x30, PORT_CONTEXT_xOFFSET(30)(sp)
-	load_x  x31, PORT_CONTEXT_xOFFSET(31)(sp)
-	.endm
-
-.macro portRESTORE_Ax_REG
-	/* x10-11		a0-7		Function arguments */
+	/* x8(s0/fp)		Saved register/Frame pointer */
+	load_x  x8,  PORT_CONTEXT_xOFFSET(8)(sp)
+	/* x9(s1)			Saved register */
+	load_x  x9,  PORT_CONTEXT_xOFFSET(9)(sp)
+	/* x10-17(a0-7)		Function arguments */
 	load_x  x10, PORT_CONTEXT_xOFFSET(10)(sp)
 	load_x  x11, PORT_CONTEXT_xOFFSET(11)(sp)
 	load_x  x12, PORT_CONTEXT_xOFFSET(12)(sp)
@@ -256,12 +264,7 @@ definitions. */
 	load_x  x15, PORT_CONTEXT_xOFFSET(15)(sp)
 	load_x  x16, PORT_CONTEXT_xOFFSET(16)(sp)
 	load_x  x17, PORT_CONTEXT_xOFFSET(17)(sp)
-	.endm
-
-.macro portRESTORE_S1_S11_REG
-	/* x9			s1			Saved register */
-	load_x  x9,  PORT_CONTEXT_xOFFSET(9)(sp)
-	/* x18-26		s2-10		Saved registers */
+	/* x18-27(s2-11)		Saved registers */
 	load_x  x18, PORT_CONTEXT_xOFFSET(18)(sp)
 	load_x  x19, PORT_CONTEXT_xOFFSET(19)(sp)
 	load_x  x20, PORT_CONTEXT_xOFFSET(20)(sp)
@@ -272,30 +275,14 @@ definitions. */
 	load_x  x25, PORT_CONTEXT_xOFFSET(25)(sp)
 	load_x  x26, PORT_CONTEXT_xOFFSET(26)(sp)
 	load_x  x27, PORT_CONTEXT_xOFFSET(27)(sp)
+	/* x28-31(t3-6)		Temporaries */
+	load_x  x28, PORT_CONTEXT_xOFFSET(28)(sp)
+	load_x  x29, PORT_CONTEXT_xOFFSET(29)(sp)
+	load_x  x30, PORT_CONTEXT_xOFFSET(30)(sp)
+	load_x  x31, PORT_CONTEXT_xOFFSET(31)(sp)
 	.endm
-
-.macro portRESTORE_MAIN_REG
-	/* x1 to x31 need to be saved */
-	load_x  x1,  PORT_CONTEXT_xOFFSET(1)(sp)
-	/* x3			gp			Global pointer */
-	load_x  x3,  PORT_CONTEXT_xOFFSET(3)(sp)
-	/* x4			tp			Thread pointer */
-	load_x  x4,  PORT_CONTEXT_xOFFSET(4)(sp)
-	/* x8			s0/fp		Saved register/Frame pointer */
-	load_x  x8,  PORT_CONTEXT_xOFFSET(8)(sp)
-	.endm
-
-.macro portRESTORE_MACHINE_SATE
-	portasmSAVE_ADDITIONAL_REGISTERS	/* Defined in freertos_risc_v_chip_specific_extensions.h to save any registers unique to the RISC-V implementation. */
-	load_x  s3, PORT_CONTEXT_mepcOFFSET(sp)
-	load_x  s4, PORT_CONTEXT_mstatusOFFSET(sp)
-	csrw	mepc, s3
-	csrw	mstatus, s4
-
-	portRESTORE_S1_S11_REG
-	.endm
-
 /*************************************************************/
+
 .align 8
 .func
 freertos_risc_v_trap_handler:
@@ -346,47 +333,41 @@ is_exception:
     csrw	mscratch, sp
 	/* Switch to ISR stack before function call. */
 	load_x	sp, xISRStackTop			
-	addi	sp, sp, -PORT_CONTEXT_SIZEOF
-	portSAVE_MAIN_REG
-	portSAVE_Ax_REG
-	portSAVE_Tx_REG
-	/* portSAVE_S1_S11_REG is called into portSAVE_MACHINE_SATE macro */
-	portSAVE_MACHINE_SATE
-	/* recover faulting SP from mscratch */
+	portSAVE_BaseReg
 	csrrw	t0, mscratch, t0
 	/* SP = X2, so save it */
 	store_x	t0, PORT_CONTEXT_xOFFSET(2)(sp)
+
+	/* Defined in freertos_risc_v_chip_specific_extensions.h to save any registers unique to the RISC-V implementation. */
+	portasmSAVE_ADDITIONAL_REGISTERS
+
 	/* Execption is treated by freedom metal functions */
 	jal portHANDLE_EXCEPTION
-	/* portSAVE_S1_S11_REG is called into portSAVE_MACHINE_SATE macro */
-	portRESTORE_MACHINE_SATE
-	portRESTORE_Tx_REG
-	portRESTORE_Ax_REG
-	portRESTORE_MAIN_REG
+
+	portasmRESTORE_ADDITIONAL_REGISTERS
+	portRESTORE_BaseReg
+
 	load_x  x2, PORT_CONTEXT_xOFFSET(2)(sp)
 	mret
 
 ecall_yield:
-	addi	sp, sp, -PORT_CONTEXT_SIZEOF
-	portSAVE_MAIN_REG
-	portSAVE_Ax_REG
-	/* restore t0 */
-	csrr	t0, mscratch
-	portSAVE_Tx_REG
-	/* portSAVE_S1_S11_REG is called into portSAVE_MACHINE_SATE macro */
-	portSAVE_MACHINE_SATE
+	portSAVE_BaseReg
 	/* s2 = mcause
 	 * s3 = mepc
 	 * s4 = mstatus
 	 * s9 will be use for pxCurrentTCB
 	 * s11 will be use to save sp
 	 */
-	addi	t0, s3, 4						/* Synchronous so updated exception return address to the instruction after the instruction that generated the exeption. */
+	/* Synchronous so updated exception return address to the instruction after the instruction that generated the exeption. */
+	addi	t0, s3, 4
 	store_x	t0, PORT_CONTEXT_mepcOFFSET(sp) 
 	/* Store the value of sp when the interrupt occur */
-	addi 	t0, sp, PORT_CONTEXT_SIZEOF
+	addi 	t0, sp, portasmREGISTER_CONTEXT_WORDSIZE
 	store_x t0, PORT_CONTEXT_xOFFSET(2)(sp)
-	
+
+	/* Defined in freertos_risc_v_chip_specific_extensions.h to save any registers unique to the RISC-V implementation. */
+	portasmSAVE_ADDITIONAL_REGISTERS
+
 	/* Load pxCurrentTCB and update first TCB member(pxTopOfStack) with sp. */
 	load_x  s9, pxCurrentTCB
 	store_x  sp, 0( s9 )
@@ -398,13 +379,7 @@ ecall_yield:
 	j	switch_context
 
 handle_interrupt:
-	addi	sp, sp, -PORT_CONTEXT_SIZEOF
-	portSAVE_MAIN_REG
-	portSAVE_Ax_REG
-	csrr	t0, mscratch
-	portSAVE_Tx_REG
-	/* portSAVE_S1_S11_REG is called into portSAVE_MACHINE_SATE macro */
-	portSAVE_MACHINE_SATE
+	portSAVE_BaseReg
 	/* s2 = mcause
 	 * s3 = mepc
 	 * s4 = mstatus
@@ -413,8 +388,11 @@ handle_interrupt:
 	 */
 
 	/* Store the value of sp when the interrupt occur */
-	addi t0, sp, PORT_CONTEXT_SIZEOF
+	addi t0, sp, portasmREGISTER_CONTEXT_WORDSIZE
 	store_x  t0, PORT_CONTEXT_xOFFSET(2)(sp)
+
+	/* Defined in freertos_risc_v_chip_specific_extensions.h to save any registers unique to the RISC-V implementation. */
+	portasmSAVE_ADDITIONAL_REGISTERS
 
 	/* Load pxCurrentTCB and update first TCB member(pxTopOfStack) with sp. */
 	load_x  s9, pxCurrentTCB
@@ -438,7 +416,7 @@ handle_interrupt:
 	load_x t0, pullMachineTimerCompareRegister  /* Load address of compare register into t0. */
 	load_x t1, pullNextTime  		/* Load the address of ullNextTime into t1. */
 
-# if( __riscv_xlen == 32 )
+# if __riscv_xlen == 32 
 	/* Update the 64-bit mtimer compare match value in two 32-bit writes. */
 	lw 	t2, 0(t1)				/* Load the low word of ullNextTime into t2. */
 	lw 	t3, 4(t1)				/* Load the high word of ullNextTime into t3. */
@@ -450,7 +428,7 @@ handle_interrupt:
 	add t6, t3, t5				/* Add overflow to high word of ullNextTime. */
 	sw 	t4, 0(t1)				/* Store new low word of ullNextTime. */
 	sw 	t6, 4(t1)				/* Store new high word of ullNextTime. */
-# elif( __riscv_xlen == 64 )
+# elif __riscv_xlen == 64 
 	/* Update the 64-bit mtimer compare match value. */
 	ld 	t2, 0(t1)			 	/* Load ullNextTime into t2. */
 	sd 	t2, 0(t0)				/* Store ullNextTime into compare register. */
@@ -503,13 +481,9 @@ end_trap_handler:
 	load_x  t1, PORT_CONTEXT_xOFFSET(2)(sp)
 	store_x  t1, 0( s9 )				/* Write sp saved value to first TCB member. */
 
-	/* portSAVE_S1_S11_REG is called into portSAVE_MACHINE_SATE macro */
-	portRESTORE_MACHINE_SATE
-	portRESTORE_Tx_REG
-	portRESTORE_Ax_REG
-	portRESTORE_MAIN_REG
+	portasmRESTORE_ADDITIONAL_REGISTERS
+	portRESTORE_BaseReg
 	load_x  x2, PORT_CONTEXT_xOFFSET(2)(sp)
-
 	mret
 	.endfunc
 /*-----------------------------------------------------------*/
@@ -518,30 +492,30 @@ end_trap_handler:
 .func
 xPortStartFirstTask:
 	/*
-	 * Save all register to space before xISRStackTop (it should be prepared by xPortFreeRTOSInit).
+	 * Save all register to space before xISRStackTop (it should be prepared by vPortFreeRTOSInit).
 	 * It will be restored when vPortEndScheduler will be call
 	 */
+    csrw	mscratch, sp
+
 	load_x  sp, xISRStackTop
-	portSAVE_MAIN_REG
-	portSAVE_Ax_REG
-	portSAVE_Tx_REG
-	portSAVE_MACHINE_SATE
-	store_x	x1, PORT_CONTEXT_mepcOFFSET(sp) 
-	/* Store the value of sp when the interrupt occur */
-	addi 	t0, sp, PORT_CONTEXT_SIZEOF
-	store_x t0, PORT_CONTEXT_xOFFSET(2)(sp)
+	addi sp, sp, portasmADDITIONAL_CONTEXT_WORDSIZE 
+	addi sp, sp, portasmREGISTER_CONTEXT_WORDSIZE
 
-	/** Set all register to the FirstTask context */
-	load_x  t0, pxCurrentTCB			/* Load pxCurrentTCB. */
-	load_x  sp, 0( t0 )				 	/* Read sp from first TCB member. */
+	portSAVE_BaseReg
 
+	csrrw	t0, mscratch, t0
+	/* SP = X2, so save it */
+	store_x	t0, PORT_CONTEXT_xOFFSET(2)(sp)
 	/* x1			ra			Return address */
 	store_x  x1,  PORT_CONTEXT_xOFFSET(1)(sp)
 
-	/* portSAVE_S1_S11_REG is called into portSAVE_MACHINE_SATE macro */
-	portRESTORE_MACHINE_SATE
-	portRESTORE_Ax_REG
-	portRESTORE_MAIN_REG
+	/* Defined in freertos_risc_v_chip_specific_extensions.h to save any registers unique to the RISC-V implementation. */
+	portasmSAVE_ADDITIONAL_REGISTERS
+
+	/** Set all register to the FirstTask context */
+	load_x  t2, pxCurrentTCB			/* Load pxCurrentTCB. */
+	load_x  sp, 0( t2 )				 	/* Read sp from first TCB member. */
+
 
 	/* Restore first TCB member */
 	load_x  t1,  PORT_CONTEXT_xOFFSET(2)(sp)
@@ -550,7 +524,7 @@ xPortStartFirstTask:
 	load_x t0, pullMachineTimerRegister  /* Load address of compare register into t0. */
 	load_x t1, pullNextTime  		/* Load the address of ullNextTime into t1. */
 
-# if( __riscv_xlen == 32 )
+# if __riscv_xlen == 32 
 		/* Read the 64-bit mtimer match value in two 32-bit writes. */
 		lw t3, 4(t0)				/* Load mtimer register high address. */
 first_task_timer_loop:
@@ -574,7 +548,7 @@ first_task_timer_loop:
 		sw t2, 0(t1)				/* Store new low word of ullNextTime. */
 		sw t3, 4(t1)				/* Store new high word of ullNextTime. */
 
-# elif( __riscv_xlen == 64 )
+# elif __riscv_xlen == 64 
 		/* Read the 64-bit mtimer */
 		ld t2, 0(t0)			 	/* Load mtimer register into t2. */
 		ld t3, uxTimerIncrementsForOneTick  /* Load the value of ullTimerIncrementForOneTick into t0 (could this be optimized by storing in an array next to pullNextTime?). */
@@ -586,13 +560,15 @@ first_task_timer_loop:
 		sd t4, 0(t1)				/* Store ullNextTime. */
 # endif /* __riscv_xlen == 64 */
 
+	/* enable interrupt */
 	li t0, 0x880
 	csrs mie, t0
 
-	portRESTORE_Tx_REG
+	portasmRESTORE_ADDITIONAL_REGISTERS
+	portRESTORE_BaseReg
+
 	load_x  ra, PORT_CONTEXT_mepcOFFSET(sp) /* Note for starting the scheduler the exception return address is used as the function return address. */
 	load_x  x2, PORT_CONTEXT_xOFFSET(2)(sp)
-
 	mret
 	.endfunc
 /*-----------------------------------------------------------*/
@@ -614,59 +590,88 @@ pxPortInitialiseStack:
 	 * mstatus 35th register
 	 * ruf 36th register
 	 */
-	csrr t0, mstatus					/* Obtain current mstatus value. */
-	addi t1, x0, 0x188					/* Generate the value 0x1880, which are the MPIE and MPP bits to set in mstatus. */
+	/* Obtain current mstatus value. */
+	csrr t0, mstatus
+	/* Generate the value 0x1880, which are the MPIE and MPP bits to set in mstatus. */
+	addi t1, x0, 0x188
 	slli t1, t1, 4
-	or t0, t0, t1						/* Set MPIE and MPP bits in mstatus value. */
+	/* reset previous value */
+	not t2, t1
+	and t0, t0, t2
+	/* Generate the value 0x1880, which are the MPIE and MPP bits to set in mstatus. */
+	addi t1, x0, 0x188
+	slli t1, t1, 4
+	/* Set MPIE and MPP bits in mstatus value. */
+	or t0, t0, t1
 
-	mv t2, a0							/* Save a0 as TopOfStack */
+	/* Make room for the registers. */
+	addi	t2, a0, -portasmREGISTER_CONTEXT_WORDSIZE
+	/* x1(ra)			Return address */
+	store_x  x0,  PORT_CONTEXT_xOFFSET(1)(t2)
+	/* x2(sp) ***** Should be save ouside this macro */
+	store_x  a0,  PORT_CONTEXT_xOFFSET(2)(t2)
+	/* x3(gp)			Global pointer */
+	store_x  x3,  PORT_CONTEXT_xOFFSET(3)(t2)
+	/* x4(tp)			Thread pointer */
+	store_x  x4,  PORT_CONTEXT_xOFFSET(4)(t2)
+	/* x5-7(t0-2)		Temporaries */
+	store_x  x0,  PORT_CONTEXT_xOFFSET(5)(t2)
+	store_x  x0,  PORT_CONTEXT_xOFFSET(6)(t2)
+	store_x  x0,  PORT_CONTEXT_xOFFSET(7)(t2)
+	/* x8(s0/fp)		Saved register/Frame pointer */
+	store_x  x0,  PORT_CONTEXT_xOFFSET(8)(t2)
+	/* x9(s1)			Saved register */
+	store_x  x0,  PORT_CONTEXT_xOFFSET(9)(t2)
+	/* x10-17(a0-7)		Function arguments */
+	store_x  a2, PORT_CONTEXT_xOFFSET(10)(t2)
+	store_x  x0, PORT_CONTEXT_xOFFSET(11)(t2)
+	store_x  x0, PORT_CONTEXT_xOFFSET(12)(t2)
+	store_x  x0, PORT_CONTEXT_xOFFSET(13)(t2)
+	store_x  x0, PORT_CONTEXT_xOFFSET(14)(t2)
+	store_x  x0, PORT_CONTEXT_xOFFSET(15)(t2)
+	store_x  x0, PORT_CONTEXT_xOFFSET(16)(t2)
+	store_x  x0, PORT_CONTEXT_xOFFSET(17)(t2)
+	/* x18-27(s2-11)		Saved registers */
+	store_x  x0, PORT_CONTEXT_xOFFSET(18)(t2)
+	store_x  x0, PORT_CONTEXT_xOFFSET(19)(t2)
+	store_x  x0, PORT_CONTEXT_xOFFSET(20)(t2)
+	store_x  x0, PORT_CONTEXT_xOFFSET(21)(t2)
+	store_x  x0, PORT_CONTEXT_xOFFSET(22)(t2)
+	store_x  x0, PORT_CONTEXT_xOFFSET(23)(t2)
+	store_x  x0, PORT_CONTEXT_xOFFSET(24)(t2)
+	store_x  x0, PORT_CONTEXT_xOFFSET(25)(t2)
+	store_x  x0, PORT_CONTEXT_xOFFSET(26)(t2)
+	store_x  x0, PORT_CONTEXT_xOFFSET(27)(t2)
+	/* x28-31(t3-6)		Temporaries */
+	store_x  x0, PORT_CONTEXT_xOFFSET(28)(t2)
+	store_x  x0, PORT_CONTEXT_xOFFSET(29)(t2)
+	store_x  x0, PORT_CONTEXT_xOFFSET(30)(t2)
+	store_x  x0, PORT_CONTEXT_xOFFSET(31)(t2)
 
-	addi a0, a0, -portWORD_SIZE	/* Space for ruf + move to @ for mstatus */
-	store_x x0, 0(a0)					/* clear ruf  */
-	addi a0, a0, portWORD_SIZE	/* Space for ruf + move to @ for mstatus */
-	store_x t0, 0(a0)					/* mstatus onto the stack. */
-	addi a0, a0, -portWORD_SIZE
-	store_x a1, 0(a0)					/* mret value (pxCode parameter) onto the stack. */
-	addi a0, a0, -portWORD_SIZE
+	store_x x0, PORT_CONTEXT_mcauseOFFSET(t2)
+	store_x a1, PORT_CONTEXT_mepcOFFSET(t2)
+	store_x t0, PORT_CONTEXT_mstatusOFFSET(t2)
+	store_x x0, PORT_CONTEXT_rufOFFSET(t2)
+
+	/* The number of chip fpu additional registers. */
+	addi t0, x0, portasmFPU_CONTEXT_SIZE 
+chip_fpu_stack_frame:
+	beq t0, x0, 1f
+	addi t2, t2, -portWORD_SIZE
+	store_x x0, 0(t2)
+	addi t0, t0, -1
+	j chip_fpu_stack_frame
+1:
 
 	addi t0, x0, portasmADDITIONAL_CONTEXT_SIZE /* The number of chip specific additional registers. */
 chip_specific_stack_frame:				/* First add any chip specific registers to the stack frame being created. */
 	beq t0, x0, 1f						/* No more chip specific registers to save. */
-	addi a0, a0, -portWORD_SIZE			/* Make space for chip specific register. */
-	store_x x0, 0(a0)					/* Give the chip specific register an initial value of zero. */
+	addi t2, t2, -portWORD_SIZE			/* Make space for chip specific register. */
+	store_x x0, 0(t2)					/* Give the chip specific register an initial value of zero. */
 	addi t0, t0, -1						/* Decrement the count of chip specific registers remaining. */
 	j chip_specific_stack_frame			/* Until no more chip specific registers. */
 1:
-	/* Space for registers x11-x31. */
-	li t0, 21
-2:
-	beq t0, x0, 3f						/* No more registers to save. */
-	addi a0, a0, -portWORD_SIZE
-	store_x x0, 0(a0)					/* Give the register an initial value of zero. */
-	addi t0, t0, -1						/* Decrement the count of registers remaining. */
-	j 2b
-3:
-	addi a0, a0, -portWORD_SIZE
-	store_x a2, 0(a0)					/* Task parameters (pvParameters parameter) goes into register X10/a0 on the stack. */
-
-	/* Space for registers x5-x9. */
-	li t0, 5
-4:
-	beq t0, x0, 5f						/* No more registers to save. */
-	addi a0, a0, -portWORD_SIZE
-	store_x x0, 0(a0)					/* Give the register an initial value of zero. */
-	addi t0, t0, -1						/* Decrement the count of registers remaining. */
-	j 4b
-5:
-
-	addi a0, a0, -portWORD_SIZE
-	store_x x4, 0(a0)					/* Store TP register */
-	addi a0, a0, -portWORD_SIZE
-	store_x x3, 0(a0)					/* Store GP register */
-	addi a0, a0, -portWORD_SIZE
-	store_x t2, 0(a0)					/* Store SP register: value store is the value before store the context */
-	addi a0, a0, -(2 * portWORD_SIZE)	/* a will contain the new value of pxTopOfStack */
-
+	mv a0, t2
 	ret
 	.endfunc
 /*-----------------------------------------------------------*/
@@ -678,43 +683,34 @@ chip_specific_stack_frame:				/* First add any chip specific registers to the st
 .func
 xPortRestoreBeforeFirstTask:
 	load_x  sp, xISRStackTop
-	/* portSAVE_S1_S11_REG is called into portSAVE_MACHINE_SATE macro */
-	portRESTORE_MACHINE_SATE
-	portRESTORE_Ax_REG
-	portRESTORE_MAIN_REG
-	portRESTORE_Tx_REG
-	load_x  ra, PORT_CONTEXT_mepcOFFSET(sp) /* Note for starting the scheduler the exception return address is used as the function return address. */
+	portasmRESTORE_ADDITIONAL_REGISTERS
+	portRESTORE_BaseReg
 	load_x  x2, PORT_CONTEXT_xOFFSET(2)(sp)
 	ret
 	.endfunc
 /*-----------------------------------------------------------*/
 
 /**
- * BaseType_t xPortMoveStack( StackType_t xStackTop, UBaseType_t xStackLength);
+ * BaseType_t xPortMoveISRStackTop( StackType_t *xISRStackTop);
  */
 .align 8
 .func
-xPortMoveStack:	
-	beqz a1, 2f
-	li t0, PORT_CONTEXT_lastIDX
-	add t1, a1, t0 
-	bltu t1, a1, 2f
-	mv	t0, sp
-	bgt	t0, a0, 2f 
+xPortMoveISRStackTop:	
+	load_x	t0, 0(a0)
+	beqz t0, 1f
+	addi t1, x0, portasmREGISTER_CONTEXT_WORDSIZE
+	addi t2, t1, portasmADDITIONAL_CONTEXT_WORDSIZE 
+	bltu t2, t1, 1f
+	addi t1, t2, portWORD_SIZE 
+	bltu t1, t2, 1f
+	bgtu t1, t0, 1f
 	sub	t1, t0, t1
-	mv 	sp, t1
-
+	store_x	t1, 0(a0)
+	mv a0, t1
+	j 2f
 1:
-	load_x	t2, 0(t0)
-	store_x	t2, 0(t1)
-	addi t0, t0, portWORD_SIZE
-	addi t1, t1, portWORD_SIZE
-	blt  t0, a0, 1b
-	li	a0, PORT_CONTEXT_lastIDX
-	j 3f
-2:
 	li	a0, 0
-3:
+2:
 	ret
 	.endfunc
 /*-----------------------------------------------------------*/
