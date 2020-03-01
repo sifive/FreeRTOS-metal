@@ -1,4 +1,4 @@
-/* Copyright 2018 SiFive, Inc */
+/* Copyright 2020 SiFive, Inc */
 /* SPDX-License-Identifier: Apache-2.0 */
 
 #include "pmp.h"

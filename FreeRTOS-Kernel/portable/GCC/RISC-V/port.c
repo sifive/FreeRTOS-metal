@@ -50,7 +50,6 @@ StackType_t xISRStackTop;
 uint64_t ullNextTime = 0ULL;
 const uint64_t *pullNextTime = &ullNextTime;
 const size_t uxTimerIncrementsForOneTick = ( size_t ) ( configCPU_CLOCK_HZ / configTICK_RATE_HZ ); /* Assumes increment won't go over 32-bits. */
-//volatile uint64_t * const pullMachineTimerCompareRegister = ( volatile uint64_t * const ) ( configCLINT_BASE_ADDRESS + 0x4000 );
 volatile uint64_t * pullMachineTimerCompareRegister;
 volatile uint64_t * const pullMachineTimerRegister        = ( volatile uint64_t * const ) ( configCLINT_BASE_ADDRESS + 0xBFF8 );
 
@@ -116,7 +115,7 @@ static void prvSetupPMP( void )
 		#endif
 	}
 
-	/* Check the expected MPU is present. */
+	/* Check the expected PMP is present. */
 	if( portMINIMAL_NB_PMP <= xPmpInfo.nb_pmp)
 	{
 		/* First setup the start address of the unprivilleged flash */
@@ -133,10 +132,11 @@ static void prvSetupPMP( void )
 		#endif
 
 		ucDefaultAttribute =
-				((portPMP_REGION_PRIVILEGED_ACCESS_ONLY) |
-				(portPMP_REGION_ADDR_MATCH_NAPOT));
+				((portPMP_REGION_READ_ONLY) |
+				(portPMP_REGION_EXECUTE) |
+				(portPMP_REGION_ADDR_MATCH_NA4));
 
-		lResult = write_pmp_config (&xPmpInfo, portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portPRIVILEGED_RAM_REGION),
+		lResult = write_pmp_config (&xPmpInfo, portUNPRIVILEGED_EXECUTE_REGION_START,
                          ucDefaultAttribute, uxDefaultBaseAddr);
 		#if( configASSERT_DEFINED == 1 )
 		{
@@ -156,11 +156,11 @@ static void prvSetupPMP( void )
 		}
 		#endif
 
-		ucDefaultAttribute =
-				((portPMP_REGION_READ_WRITE) |
-				(portPMP_REGION_ADDR_MATCH_NAPOT));
+		ucDefaultAttribute = ((portPMP_REGION_READ_ONLY) |
+                            (portPMP_REGION_EXECUTE) |
+                            (portPMP_REGION_ADDR_MATCH_TOR));
 
-		lResult = write_pmp_config (&xPmpInfo, portCONFIGURABLE_REGIONS_REORDER(xPmpInfo.nb_pmp, portGENERAL_PERIPHERALS_REGION),
+		lResult = write_pmp_config (&xPmpInfo, portUNPRIVILEGED_EXECUTE_REGION_END,
                          ucDefaultAttribute, uxDefaultBaseAddr);
 		#if( configASSERT_DEFINED == 1 )
 		{
@@ -388,12 +388,6 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
         "csrw pmpaddr4, t1 \n"
         "lw t4, 0(t5) \n"
         "csrw pmpaddr3, t4 \n"
-        // "lw t3, 0(t5) \n"
-        // "csrw pmpaddr2, t3 \n"
-        // "lw t2, 4(t5) \n"
-        // "csrw pmpaddr1, t2 \n"
-        // "lw t1, 0(t5) \n"
-        // "csrw pmpaddr0, t1 \n"
         ::: "t1", "t2", "t3", "t4"
     );
 #elif __riscv_xlen == 64
@@ -429,12 +423,6 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
         "csrw pmpaddr4, t1 \n"
         "ld t4, 0(t5) \n"
         "csrw pmpaddr3, t4 \n"
-        // "ld t3, 16(t5) \n"
-        // "csrw pmpaddr2, t3 \n"
-        // "ld t2, 8(t5) \n"
-        // "csrw pmpaddr1, t2 \n"
-        // "ld t1, 0(t5) \n"
-        // "csrw pmpaddr0, t1 \n"
         ::: "t1", "t2", "t3", "t4"
     );
 #endif
@@ -652,9 +640,6 @@ void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xPMPSettings,
 
         /* Config stack start address */
         uxBaseAddressChecked = 0;
-        // lResult = addr_modifier (xPmpInfo.granularity,
-        //                         (size_t) __unprivileged_data_section_start__,
-        //                         &uxBaseAddressChecked);
         lResult = addr_modifier (xPmpInfo.granularity,
                                 (size_t) pxBottomOfStack,
                                 &uxBaseAddressChecked);
@@ -676,9 +661,6 @@ void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xPMPSettings,
 
 		/* Config stack end address and TOR */
 		uxBaseAddressChecked = 0;
-		// lResult = addr_modifier (xPmpInfo.granularity,
-        //                         (size_t) __unprivileged_data_section_end__,
-        //                         &uxBaseAddressChecked);
         lResult = addr_modifier (xPmpInfo.granularity,
                                 (size_t) pxBottomOfStack + ( size_t ) ulStackDepth * sizeof( StackType_t ), 
                                 &uxBaseAddressChecked);
@@ -763,13 +745,6 @@ void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xPMPSettings,
 		{
 			if( ( xRegions[ lIndex ] ).ulLengthInBytes > 0UL )
 			{
-				// uxBaseAddressChecked = 0;
-				// lResult = napot_addr_modifier (	xPmpInfo.granularity,
-				// 								(size_t) xRegions[ lIndex ].pvBaseAddress,
-				// 								&uxBaseAddressChecked,
-				// 								( size_t ) xRegions[ lIndex ].ulLengthInBytes );
-				// configASSERT(0 <= lResult);
-
 				xPMPSettings->uxRegionBaseAddress[ul] = (size_t) xRegions[ lIndex ].pvBaseAddress;
 
 				xPMPSettings->uxPmpConfigRegAttribute[portGET_PMPCFG_IDX(portSTACK_REGION_START + ul)] +=

@@ -74,7 +74,10 @@ to be guarded with a critical section. */
 #else
 	#error __riscv_xlen is not defined
 #endif
-/*-----------------------------------------------------------*/
+
+/******************************************************************************/
+/******************************  PMP settings  ********************************/
+/******************************************************************************/
 
 #if( portUSING_MPU_WRAPPERS == 1 )
 #include "pmp.h"
@@ -119,9 +122,6 @@ to be guarded with a critical section. */
 /********************/
 /* PMP configs mode */
 /********************/
-#define portUNPRIVILEGED_FLASH_REGION_START		( 0UL )
-#define portUNPRIVILEGED_FLASH_REGION_END		( 1UL )
-#define portPRIVILEGE_STATUS_REGION	            ( 2UL )
 
 /* Used to indicate that a PMP region should be disable */
 #define portPMP_REGION_OFF						( 0x00UL )
@@ -176,34 +176,14 @@ to be guarded with a critical section. */
 
 /**
  * the number of pmp available for one hart(core) is dynamically determinated
- * so we need to reevaluate the number of configurable regions
+ * so we need to reevaluate the last configurable region available
  */
 #define portLAST_CONFIGURABLE_REGION_REAL(max_nb_pmp)	( (max_nb_pmp) - 1 )
+/**
+ * the number of pmp available for one hart(core) is dynamically determinated
+ * so we need to reevaluate the number of configurable regions
+ */
 #define portNUM_CONFIGURABLE_REGIONS_REAL(max_nb_pmp)	( ( portLAST_CONFIGURABLE_REGION_REAL( max_nb_pmp ) - portFIRST_CONFIGURABLE_REGION ) + 1 )
-
-/* TO DO */
-#define portPERIPHERALS_START_ADDRESS			0x40000000UL
-#define portPERIPHERALS_END_ADDRESS				0x5FFFFFFFUL
-
-// region re-ordering to take into account priority level
-// max_region : number of region for the hart
-// priority: 0 is the lowest priority
-// #define portREGION_MATCHING(max_region, priority)	 ( max_region - priority -1 )
-// #define portCONFIGURABLE_REGIONS_REORDER(max_region, region) ( max_region - region -1 )
-
-#define portPMPCFG_BIT_SHIFT(region)	( ((region) % SIZE_PMP_CFG_REG) << 3 )
-#define portGET_PMPCFG_IDX(region) 		((region) / SIZE_PMP_CFG_REG)
-
-// minimal number of pmp to use FreeRTOS with pmp
-#define portMINIMAL_NB_PMP				( 8UL ) /* 8 regions, unified. */
-
-// #define portSWITCH_TO_USER_MODE() __asm volatile ( " mrs r0, control \n orr r0, #1 \n msr control, r0 " ::: "r0", "memory" )
- 
-typedef struct PMP_REGION_REGISTERS
-{
-	UBaseType_t uxRegionBaseAddress;
-	UBaseType_t uxRegionAttribute;
-} xPMP_REGION_REGISTERS;
 
 /**
  * Bit shift to apply on a PMP config to reach the region specified in parameter
@@ -252,15 +232,6 @@ enum ePortPRIVILEGE_MODE {
     /* Machine mode */
     ePortMACHINE_MODE = 3,
 };
-
-
-enum ePortPRIVILEGE_MODE {
-    ePortUSER_MODE = 0,
-    ePortSUPERVISOR_MODE =1,
-    ePortMACHINE_MODE = 3,
-};
-
-extern BaseType_t xIsPrivileged( void );
 
 /**
  * @brief Determine the current execution mode of the hart

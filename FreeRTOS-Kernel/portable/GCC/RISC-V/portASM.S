@@ -558,8 +558,8 @@ switch_context:
 	lw a0, xPmpInfo
     li a1, 3
     sub a0, a0, a1
-	addi a1, s9, 4
-	jal vPortPmpSwitch
+    addi a1, s9, 4
+    jal vPortPmpSwitch   
 #endif
 
 end_trap_handler:	
