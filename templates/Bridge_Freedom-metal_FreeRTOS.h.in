@@ -15,3 +15,5 @@
 
 #define portHANDLE_INTERRUPT        ${portHANDLE_INTERRUPT}
 #define portHANDLE_EXCEPTION        ${portHANDLE_EXCEPTION}
+
+#${portUSING_MPU_WRAPPERS_define} portUSING_MPU_WRAPPERS    ${portUSING_MPU_WRAPPERS}

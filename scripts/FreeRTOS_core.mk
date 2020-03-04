@@ -19,6 +19,11 @@ override SOURCE_DIRS += $(SOURCE_DIR)/portable/GCC/RISC-V
 # ----------------------------------------------------------------------
 ifeq ($(PMP),ENABLE)
 	override SOURCE_DIRS += $(SOURCE_DIR)/portable/Common
+	export portUSING_MPU_WRAPPERS=1
+	export portUSING_MPU_WRAPPERS_define=define
+else
+	export portUSING_MPU_WRAPPERS=
+	export portUSING_MPU_WRAPPERS_define=undef
 endif
 
 # ---------------------------------------------------------------------
