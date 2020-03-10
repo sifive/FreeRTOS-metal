@@ -518,13 +518,10 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
  */
 BaseType_t xPortStartScheduler( void ) PRIVILEGED_FUNCTION
 {
-#if 0
 #if( portUSING_MPU_WRAPPERS != 1 )
-	extern void xPortStartFirstTask( void );
+	extern BaseType_t xPortRaisePrivilege( void ) ;
 #endif
-#else
 	extern void xPortStartFirstTask( void );
-#endif
 
 	#if( configASSERT_DEFINED == 1 )
 	{
@@ -542,19 +539,11 @@ BaseType_t xPortStartScheduler( void ) PRIVILEGED_FUNCTION
 	}
 	#endif /* configASSERT_DEFINED */
 
-#if 0
-#if( portUSING_MPU_WRAPPERS == 1 )
-	/* ecall 3 will start the first task */
-	vPortSyscall(portSVC_START_FIRST_TASK); 
-#else
-	xPortStartFirstTask();
-#endif
-#else
 #if( portUSING_MPU_WRAPPERS == 1 )
 	xPortRaisePrivilege();
 #endif
 	xPortStartFirstTask();
-#endif
+
 	/* Should not get here as after calling xPortStartFirstTask() only tasks
 	should be executing. */
 	return pdFAIL;

@@ -95,12 +95,10 @@ to be guarded with a critical section. */
 #define portSVC_DISABLE_INTERRUPTS				1
 /* Command to indicate system call handler that interrupts should be disabled */
 #define portSVC_ENABLE_INTERRUPTS				2
-/* Command to indicate system call handler to start first task */
-#define portSVC_START_FIRST_TASK				3
 /* Command to indicate system call handler to switch to machine mode */
-#define portSVC_SWITCH_TO_MACHINE				4
+#define portSVC_SWITCH_TO_MACHINE				3
 /* Command to indicate system call handler to switch to user mode */
-#define portSVC_SWITCH_TO_USER					5
+#define portSVC_SWITCH_TO_USER					4
 
 /**********************/
 /* PMP configs rights */

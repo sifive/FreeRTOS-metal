@@ -366,7 +366,7 @@ is_exception:
 
 #if( portUSING_MPU_WRAPPERS == 1 )
 environment_switch:
-	li t0, 5
+	li t0, 4
 	bgt	a0,	t0,	ecall_end
 	la t0, 1f
 	slli	a0, a0, 2
@@ -376,7 +376,6 @@ environment_switch:
 	jal x0, ecall_yield
 	jal x0, ecall_disable_interrupt
 	jal x0, ecall_enable_interrupt
-	jal x0, ecall_start_first_task
 	jal x0, ecall_switch_to_machine
 	jal x0, ecall_switch_to_user
 
@@ -391,11 +390,6 @@ ecall_enable_interrupt:
 	li a0, 0x80
 	csrs mstatus, a0
 	j ecall_mret
-
-ecall_start_first_task:
-	/* restore t0 */
-	csrr	t0, mscratch
-	j xPortStartFirstTask
 
 ecall_switch_to_machine:
 	/* Set mpp */
