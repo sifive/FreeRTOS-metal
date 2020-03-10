@@ -410,14 +410,16 @@ ecall_switch_to_user:
 	j ecall_mret
 
 ecall_mret:
+	/* update privilege_status value */
     csrr t0, mstatus
     li a0, 0x1800
     and t0, t0, a0
     srli t0, t0, 11
     la a0, privilege_status
     sw t0, 0(a0)
+	/* Synchronous so updated exception return address to the instruction after the instruction that generated the exeption. */
 	csrr t0, mepc
-	addi	t0, t0, 4						/* Synchronous so updated exception return address to the instruction after the instruction that generated the exeption. */
+	addi	t0, t0, 4
 	csrw	mepc, t0
 	/* restore t0 */
 	csrr	t0, mscratch
@@ -560,11 +562,21 @@ switch_context:
     sub a0, a0, a1
     addi a1, s9, 4
     jal vPortPmpSwitch   
+	fence.i
 #endif
 
 end_trap_handler:	
 	load_x  t1, PORT_CONTEXT_xOFFSET(2)(sp)
 	store_x  t1, 0( s9 )				/* Write sp saved value to first TCB member. */
+
+#if( portUSING_MPU_WRAPPERS == 1 )
+	load_x  t0, PORT_CONTEXT_mstatusOFFSET(sp)
+    li a0, 0x1800
+    and t0, t0, a0
+    srli t0, t0, 11
+    la a0, privilege_status
+    sw t0, 0(a0)
+#endif
 
 	portasmRESTORE_ADDITIONAL_REGISTERS
 	portRESTORE_BaseReg
@@ -600,9 +612,14 @@ xPortStartFirstTask:
 	load_x  t2, pxCurrentTCB			/* Load pxCurrentTCB. */
 	load_x  sp, 0( t2 )				 	/* Read sp from first TCB member. */
 
+#if( portUSING_MPU_WRAPPERS == 1 )
+	load_x  t1, PORT_CONTEXT_mstatusOFFSET(sp)
+    li a0, 0x1800
+    and t1, t1, a0
+    srli t1, t1, 11
+    la a0, privilege_status
+    sw t1, 0(a0)
 
-# if( portUSING_MPU_WRAPPERS == 1 )
-	/** setup PMP */
 	lw a0, xPmpInfo
     li a1, 3
     sub a0, a0, a1

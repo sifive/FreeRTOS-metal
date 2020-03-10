@@ -42,15 +42,15 @@
 #include "portmacro.h"
 #include "string.h"
 
-StackType_t xISRStackTop;
+PRIVILEGED_DATA StackType_t xISRStackTop;
 
 /*-----------------------------------------------------------*/
 
 /* Used to program the machine timer compare register. */
-uint64_t ullNextTime = 0ULL;
+PRIVILEGED_DATA uint64_t ullNextTime = 0ULL;
 const uint64_t *pullNextTime = &ullNextTime;
 const size_t uxTimerIncrementsForOneTick = ( size_t ) ( configCPU_CLOCK_HZ / configTICK_RATE_HZ ); /* Assumes increment won't go over 32-bits. */
-volatile uint64_t * pullMachineTimerCompareRegister;
+PRIVILEGED_DATA volatile uint64_t * pullMachineTimerCompareRegister;
 volatile uint64_t * const pullMachineTimerRegister        = ( volatile uint64_t * const ) ( configCLINT_BASE_ADDRESS + 0xBFF8 );
 
 #if( portUSING_MPU_WRAPPERS == 1 )
@@ -97,7 +97,7 @@ BaseType_t xIsPrivileged( void )
  * @details those regions won't be reconfigured during context switch
  * 
  */
-static void prvSetupPMP( void )
+static void prvSetupPMP( void ) PRIVILEGED_FUNCTION
 {
     extern uint32_t __unprivileged_section_start__[];
     extern uint32_t __unprivileged_section_end__[];
@@ -202,7 +202,7 @@ static void prvSetupPMP( void )
  * 
  * @param xIsrTop 
  */
-BaseType_t xPortFreeRTOSInit( StackType_t xIsrTop )
+BaseType_t xPortFreeRTOSInit( StackType_t xIsrTop ) PRIVILEGED_FUNCTION
 {
 	UBaseType_t uxHartid;
 
@@ -243,6 +243,7 @@ BaseType_t xPortFreeRTOSInit( StackType_t xIsrTop )
 
 	/*
 	* xIsrStack Is a Buffer Allocated into Application
+	* xIsrStack_top is the Top adress of this Buffer 
 	* it will contain  the isrstack and space or the registeries backup
 	*
 	*                 Top +----------------------+ xIsrTop
@@ -312,7 +313,7 @@ BaseType_t xPortFreeRTOSInit( StackType_t xIsrTop )
  * 
  */
 __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
-												xMPU_SETTINGS * xPMPSettings)
+												xMPU_SETTINGS * xPMPSettings) PRIVILEGED_FUNCTION
 {
     /* Compute jump offset to avoid configure unuse PMP */
 	asm volatile (
@@ -515,11 +516,16 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
  * 
  * @return BaseType_t error code (pdFAIL or pdPASS)
  */
-BaseType_t xPortStartScheduler( void )
+BaseType_t xPortStartScheduler( void ) PRIVILEGED_FUNCTION
 {
+#if 0
 #if( portUSING_MPU_WRAPPERS != 1 )
 	extern void xPortStartFirstTask( void );
 #endif
+#else
+	extern void xPortStartFirstTask( void );
+#endif
+
 	#if( configASSERT_DEFINED == 1 )
 	{
 		volatile uint32_t mtvec = 0;
@@ -536,13 +542,19 @@ BaseType_t xPortStartScheduler( void )
 	}
 	#endif /* configASSERT_DEFINED */
 
+#if 0
 #if( portUSING_MPU_WRAPPERS == 1 )
 	/* ecall 3 will start the first task */
 	vPortSyscall(portSVC_START_FIRST_TASK); 
 #else
 	xPortStartFirstTask();
 #endif
-
+#else
+#if( portUSING_MPU_WRAPPERS == 1 )
+	xPortRaisePrivilege();
+#endif
+	xPortStartFirstTask();
+#endif
 	/* Should not get here as after calling xPortStartFirstTask() only tasks
 	should be executing. */
 	return pdFAIL;
@@ -603,7 +615,8 @@ __attribute__ (( naked )) void vResetPrivilege( void )
 /*-----------------------------------------------------------*/
 
 /**
- * @brief Store PMP settings in Task TCB
+ * @brief Store PMP settings in Task TCB - the name this function
+ * 		  is vPortStoreTaskMPUSettings in order to be MPU compliant
  * 
  * @param[out]  xPMPSettings    PMP settings stored in Task TCB
  * @param[in]   xRegions        PMP configuration of the task
@@ -613,11 +626,8 @@ __attribute__ (( naked )) void vResetPrivilege( void )
 void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xPMPSettings,
 								const struct xMEMORY_REGION * const xRegions,
 								StackType_t *pxBottomOfStack,
-								uint32_t ulStackDepth )
+								uint32_t ulStackDepth ) PRIVILEGED_FUNCTION
 {
-    extern uint32_t __unprivileged_data_section_start__[];
-    extern uint32_t __unprivileged_data_section_end__[];
-    
 	int32_t lIndex;
 	uint32_t ul;
 
@@ -741,7 +751,7 @@ void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xPMPSettings,
 
 		lIndex = 0;
 
-		for( ul = 2; ul < portNUM_CONFIGURABLE_REGIONS_REAL (xPmpInfo.nb_pmp) + 2; ul++ )
+		for( ul = 2; ul < (portNUM_CONFIGURABLE_REGIONS_REAL (xPmpInfo.nb_pmp) + 2); ul++ )
 		{
 			if( ( xRegions[ lIndex ] ).ulLengthInBytes > 0UL )
 			{
