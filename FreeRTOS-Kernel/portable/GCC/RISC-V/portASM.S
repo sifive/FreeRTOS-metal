@@ -61,6 +61,9 @@
  * to the project by SiFive
  * ------------------------------------------------------------------
  */
+
+#include "FreeRTOSConfig.h"
+
 #ifndef __riscv_xlen
 #error Missing __riscv_xlen
 #endif
@@ -74,9 +77,9 @@
 #else
 	#error __riscv_xlen with an unsupported value
 #endif
+#include "FreeRTOSConfig.h"
 
 #include "freertos_risc_v_chip_specific_extensions.h"
-
 
 /* integer registers */
 #define portWORD_SIZE        (__riscv_xlen / 8)
@@ -133,9 +136,16 @@ definitions. */
 .extern pxCurrentTCB
 .extern vTaskSwitchContext
 .extern pullMachineTimerCompareRegister
+.extern pullMachineTimerRegister
 .extern pullNextTime
 .extern uxTimerIncrementsForOneTick /* size_t type so 32-bit on 32-bit core and 64-bits on 64-bit core. */
 .extern xISRStackTop
+
+#if( portUSING_MPU_WRAPPERS == 1 )
+	.extern vPortPmpSwitch
+	.extern xPmpInfo
+    .extern privilege_status
+#endif
 
 #if( configUSE_SEGGER_SYSTEMVIEW == 1 )
 # ifndef SYSVIEW_RECORD_ENTER_ISR
@@ -284,7 +294,7 @@ definitions. */
 /*************************************************************/
 
 .align 8
-.func
+.type   freertos_risc_v_trap_handler, @function
 freertos_risc_v_trap_handler:
 	/* We do not know if this is an ASYNC or SYNC
 	 * If ASYNC, it is a normal interrupt
@@ -325,7 +335,11 @@ handle_exception:
 	addi	t0, t0, -8
 	blt		t0, x0, is_exception /* mcause < 8, must be fault */
 	addi	t0, t0, -4
+#if( portUSING_MPU_WRAPPERS == 1 )
+	blt		t0, x0, environment_switch
+#else
 	blt		t0, x0, ecall_yield
+#endif
 
 is_exception:
 	/* restore t0 and save sp in mscratch. */
@@ -349,6 +363,66 @@ is_exception:
 
 	load_x  x2, PORT_CONTEXT_xOFFSET(2)(sp)
 	mret
+
+#if( portUSING_MPU_WRAPPERS == 1 )
+environment_switch:
+	li t0, 4
+	bgt	a0,	t0,	ecall_end
+	la t0, 1f
+	slli	a0, a0, 2
+	add t0, t0, a0
+	jr t0
+1:
+	jal x0, ecall_yield
+	jal x0, ecall_disable_interrupt
+	jal x0, ecall_enable_interrupt
+	jal x0, ecall_switch_to_machine
+	jal x0, ecall_switch_to_user
+
+ecall_disable_interrupt:
+	/* Clear mpie */
+	li a0, 0x80
+	csrc mstatus, a0
+	j ecall_mret
+
+ecall_enable_interrupt:
+	/* Set mpie */
+	li a0, 0x80
+	csrs mstatus, a0
+	j ecall_mret
+
+ecall_switch_to_machine:
+	/* Set mpp */
+	li a0, 0x1800
+	csrs mstatus, a0
+	j ecall_mret
+
+ecall_switch_to_user:
+	/* Clear mpp */
+	li a0, 0x1800
+	csrc mstatus, a0
+	j ecall_mret
+
+ecall_mret:
+	/* update privilege_status value */
+    csrr t0, mstatus
+    li a0, 0x1800
+    and t0, t0, a0
+    srli t0, t0, 11
+    la a0, privilege_status
+    sw t0, 0(a0)
+	/* Synchronous so updated exception return address to the instruction after the instruction that generated the exeption. */
+	csrr t0, mepc
+	addi	t0, t0, 4
+	csrw	mepc, t0
+	/* restore t0 */
+	csrr	t0, mscratch
+	mret
+
+ecall_end:
+        /* unauthorized ecall */
+        j       unrecoverable_error
+#endif
 
 ecall_yield:
 	portSAVE_BaseReg
@@ -476,20 +550,36 @@ switch_context:
 #endif
 	load_x s9, pxCurrentTCB			/* Load pxCurrentTCB. */
 	load_x  sp, 0( s9 )				/* Read sp from first TCB member. */
+#if( portUSING_MPU_WRAPPERS == 1 )
+	lw a0, xPmpInfo
+    li a1, 3
+    sub a0, a0, a1
+    addi a1, s9, 4
+    jal vPortPmpSwitch   
+	fence.i
+#endif
 
 end_trap_handler:	
 	load_x  t1, PORT_CONTEXT_xOFFSET(2)(sp)
 	store_x  t1, 0( s9 )				/* Write sp saved value to first TCB member. */
 
+#if( portUSING_MPU_WRAPPERS == 1 )
+	load_x  t0, PORT_CONTEXT_mstatusOFFSET(sp)
+    li a0, 0x1800
+    and t0, t0, a0
+    srli t0, t0, 11
+    la a0, privilege_status
+    sw t0, 0(a0)
+#endif
+
 	portasmRESTORE_ADDITIONAL_REGISTERS
 	portRESTORE_BaseReg
 	load_x  x2, PORT_CONTEXT_xOFFSET(2)(sp)
 	mret
-	.endfunc
 /*-----------------------------------------------------------*/
 
 .align 8
-.func
+.type   xPortStartFirstTask, @function
 xPortStartFirstTask:
 	/*
 	 * Save all register to space before xISRStackTop (it should be prepared by vPortFreeRTOSInit).
@@ -516,6 +606,22 @@ xPortStartFirstTask:
 	load_x  t2, pxCurrentTCB			/* Load pxCurrentTCB. */
 	load_x  sp, 0( t2 )				 	/* Read sp from first TCB member. */
 
+#if( portUSING_MPU_WRAPPERS == 1 )
+	load_x  t1, PORT_CONTEXT_mstatusOFFSET(sp)
+    li a0, 0x1800
+    and t1, t1, a0
+    srli t1, t1, 11
+    la a0, privilege_status
+    sw t1, 0(a0)
+
+	lw a0, xPmpInfo
+    li a1, 3
+    sub a0, a0, a1
+	addi a1, t2, 4
+	jal vPortPmpSwitch
+# endif
+	
+	load_x  t2, pxCurrentTCB                        /* Load pxCurrentTCB. */
 
 	/* Restore first TCB member */
 	load_x  t1,  PORT_CONTEXT_xOFFSET(2)(sp)
@@ -570,15 +676,18 @@ first_task_timer_loop:
 	load_x  ra, PORT_CONTEXT_mepcOFFSET(sp) /* Note for starting the scheduler the exception return address is used as the function return address. */
 	load_x  x2, PORT_CONTEXT_xOFFSET(2)(sp)
 	mret
-	.endfunc
 /*-----------------------------------------------------------*/
 
 
 /**
  * StackType_t *pxPortInitialiseStack( StackType_t *pxTopOfStack, TaskFunction_t pxCode, void *pvParameters )
+ * StackType_t *pxPortInitialiseStack( StackType_t *pxTopOfStack, TaskFunction_t pxCode, void *pvParameters, BaseType_t xRunPrivileged ) PRIVILEGED_FUNCTION
  **/
+//#if( portUSING_MPU_WRAPPERS == 1 )
+//.section .privileged_functions
+//#endif
 .align 8
-.func
+.type   pxPortInitialiseStack, @function
 pxPortInitialiseStack:
 	/*
 	 * To maintain RISCV ABI stack alignment requirements(16bytes)
@@ -599,7 +708,15 @@ pxPortInitialiseStack:
 	not t2, t1
 	and t0, t0, t2
 	/* Generate the value 0x1880, which are the MPIE and MPP bits to set in mstatus. */
+#if( portUSING_MPU_WRAPPERS == 1 )
+	mv t1, x0
+	beqz a3, 1f
+	addi t1, t1, 0x180
+1:	
+	ori t1, t1, 0x8
+#else
 	addi t1, x0, 0x188
+#endif
 	slli t1, t1, 4
 	/* Set MPIE and MPP bits in mstatus value. */
 	or t0, t0, t1
@@ -673,28 +790,29 @@ chip_specific_stack_frame:				/* First add any chip specific registers to the st
 1:
 	mv a0, t2
 	ret
-	.endfunc
+//#if( portUSING_MPU_WRAPPERS == 1 )
+//.section .text
+//#endif
 /*-----------------------------------------------------------*/
 
 /**
  * void xPortRestoreBeforeFirstTask(void)
  */
 .align 8
-.func
+.type   xPortRestoreBeforeFirstTask, @function
 xPortRestoreBeforeFirstTask:
 	load_x  sp, xISRStackTop
 	portasmRESTORE_ADDITIONAL_REGISTERS
 	portRESTORE_BaseReg
 	load_x  x2, PORT_CONTEXT_xOFFSET(2)(sp)
 	ret
-	.endfunc
 /*-----------------------------------------------------------*/
 
 /**
  * BaseType_t xPortMoveISRStackTop( StackType_t *xISRStackTop);
  */
 .align 8
-.func
+.type   xPortMoveISRStackTop, @function
 xPortMoveISRStackTop:	
 	load_x	t0, 0(a0)
 	beqz t0, 1f
@@ -712,7 +830,6 @@ xPortMoveISRStackTop:
 	li	a0, 0
 2:
 	ret
-	.endfunc
 /*-----------------------------------------------------------*/
 
 /*

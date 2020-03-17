@@ -1,0 +1,19 @@
+/**
+ * @file Bridge_Freedom-metal_FreeRTOS.h.in
+ * @author Pierre-Henry Moussay (pierre-henry.moussay@sifive.com)
+ * @brief Bridge_Freedom-metal_FreeRTOS.h.in template for FreeRTOS
+ * @version 0.1
+ * @date 2020-02-26
+ * 
+ * @copyright Copyright (c) 2020 SiFive, Inc
+ * @copyright SPDX-License-Identifier: Apache-2.0
+ * 
+ */
+
+#define MTIME_RATE_HZ               ${MTIME_RATE_HZ}
+#define MTIME_CTRL_ADDR             ${MTIME_CTRL_ADDR}
+
+#define portHANDLE_INTERRUPT        ${portHANDLE_INTERRUPT}
+#define portHANDLE_EXCEPTION        ${portHANDLE_EXCEPTION}
+
+#${portUSING_MPU_WRAPPERS_define} portUSING_MPU_WRAPPERS    ${portUSING_MPU_WRAPPERS}
