@@ -11,22 +11,6 @@ include scripts/FreeRTOS_core.mk
 #                                CHECKS
 ################################################################################
 
-ifeq ($(portHANDLE_INTERRUPT),)
-	ERR = $(error Please specify portHANDLE_INTERRUPT by using portHANDLE_INTERRUPT variable )
-endif
-
-ifeq ($(portHANDLE_EXCEPTION),)
-	ERR = $(error Please specify portHANDLE_EXCEPTION by using portHANDLE_EXCEPTION variable )
-endif
-
-ifeq ($(MTIME_CTRL_ADDR),)
-	ERR = $(error Please specify mtime controller address by using MTIME_CTRL_ADDR variable )
-endif
-
-ifeq ($(MTIME_RATE_HZ),)
-	ERR = $(error Please specify MTIME_RATE_HZ by using MTIME_RATE_HZ variable )
-endif
-
 ifeq ($(FREERTOS_CONFIG_DIR),)
 	ERR = $(error Please specify FreeRTOSConfig.h driectory by using FREERTOS_CONFIG_DIR variable ) 
 endif
@@ -69,6 +53,8 @@ else
 	HIDE := @
 endif
 
+export MAKE_CONFIG
+
 ################################################################################
 #                                RULES
 ################################################################################
@@ -77,9 +63,9 @@ libFreeRTOS.a : headers $(OBJS)
 	$(HIDE) mkdir -p $(BUILD_DIR)/lib
 	$(HIDE) $(AR) $(ARFLAGS) $(BUILD_DIR)/lib/libFreeRTOS.a $(OBJS)
 
-headers :
+headers : venv/.stamp
 	$(HIDE) mkdir -p $(BUILD_DIR)/include
-	python3 $(CURRENT_DIR)/scripts/parser_auto_header.py --input_file $(HEADER_TEMPLATES) --output_dir $(BUILD_DIR)/include
+	. venv/bin/activate && python3 $(CURRENT_DIR)/scripts/parser_auto_header.py --input_file $(HEADER_TEMPLATES) --output_dir $(BUILD_DIR)/include
 
 $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.c err headers
 	$(HIDE) mkdir -p $(dir $@)
@@ -97,9 +83,18 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.asm err headers
 	$(HIDE) mkdir -p $(dir $@)
 	$(HIDE) $(CC) -D__ASSEMBLY__ -c -o $@ $(ASFLAGS) $<
 
-.PHONY: test_config_file
-test_config_file: 
-	$(ERR)
+test_config : venv/.stamp
+	$(info MAKE_CONFIG:$(MAKE_CONFIG))
+	. venv/bin/activate && python3 $(CURRENT_DIR)/scripts/parser_auto_header.py
+
+venv/.stamp: venv/bin/activate requirements.txt
+	. venv/bin/activate && pip install --upgrade pip
+	. venv/bin/activate && pip install -r requirements.txt
+	@echo "Remember to source venv/bin/activate!"
+	touch $@
+
+venv/bin/activate:
+	python3 -m venv venv
 
 .PHONY: err
 err: 

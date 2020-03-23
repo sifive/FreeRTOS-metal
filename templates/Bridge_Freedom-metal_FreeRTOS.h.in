@@ -1,5 +1,5 @@
 /**
- * @file Bridge_Freedom-metal_FreeRTOS.h.in
+ * @file Bridge_Freedom-metal_FreeRTOS.h
  * @author Pierre-Henry Moussay (pierre-henry.moussay@sifive.com)
  * @brief Bridge_Freedom-metal_FreeRTOS.h.in template for FreeRTOS
  * @version 0.1
@@ -10,10 +10,23 @@
  * 
  */
 
-#define MTIME_RATE_HZ               ${MTIME_RATE_HZ}
-#define MTIME_CTRL_ADDR             ${MTIME_CTRL_ADDR}
+#ifndef BRIDGE_FREEDOM_METAL_FREERTOS_H
+#define BRIDGE_FREEDOM_METAL_FREERTOS_H
 
-#define portHANDLE_INTERRUPT        ${portHANDLE_INTERRUPT}
-#define portHANDLE_EXCEPTION        ${portHANDLE_EXCEPTION}
+#define MTIME_RATE_HZ               {{config.freeRTOS.define.MTIME_RATE_HZ}} 
+#define MTIME_CTRL_ADDR             {{config.freeRTOS.define.MTIME_CTRL_ADDR}}
 
-#${portUSING_MPU_WRAPPERS_define} portUSING_MPU_WRAPPERS    ${portUSING_MPU_WRAPPERS}
+#define portHANDLE_INTERRUPT        {{config.freeRTOS.define.portHANDLE_INTERRUPT}}
+#define portHANDLE_EXCEPTION        {{config.freeRTOS.define.portHANDLE_EXCEPTION}}
+
+{% if config.freeRTOS.define.portUSING_MPU_WRAPPERS is defined %}
+#define portUSING_MPU_WRAPPERS      {{config.freeRTOS.define.portUSING_MPU_WRAPPERS}}
+{% endif %}
+{% if config.freeRTOS.define.configUSE_SEGGER_SYSTEMVIEW is defined %}
+#define configUSE_SEGGER_SYSTEMVIEW             {{config.freeRTOS.define.configUSE_SEGGER_SYSTEMVIEW}}
+#define SYSVIEW_RECORD_ENTER_ISR                {{config.freeRTOS.define.SYSVIEW_RECORD_ENTER_ISR}}
+#define SYSVIEW_RECORD_EXIT_ISR                 {{config.freeRTOS.define.SYSVIEW_RECORD_EXIT_ISR}}
+#define SYSVIEW_RECORD_EXIT_ISR_TO_SCHEDULER    {{config.freeRTOS.define.SYSVIEW_RECORD_EXIT_ISR_TO_SCHEDULER}}
+{% endif %}
+
+#endif /* BRIDGE_FREEDOM_METAL_FREERTOS_H */
