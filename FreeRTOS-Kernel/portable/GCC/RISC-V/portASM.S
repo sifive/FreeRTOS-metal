@@ -62,8 +62,6 @@
  * ------------------------------------------------------------------
  */
 
-#include "FreeRTOSConfig.h"
-
 #ifndef __riscv_xlen
 #error Missing __riscv_xlen
 #endif
