@@ -339,6 +339,7 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
         :::"t1", "t2"
     );
 #elif __riscv_xlen == 64
+    asm volatile (
         "li t1, 0x1818181818181818 \n"
         /** 
          * we avoid disabling permanent PMP config, therefore those region mask
@@ -518,9 +519,6 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
  */
 BaseType_t xPortStartScheduler( void ) PRIVILEGED_FUNCTION
 {
-#if( portUSING_MPU_WRAPPERS != 1 )
-	extern BaseType_t xPortRaisePrivilege( void ) ;
-#endif
 	extern void xPortStartFirstTask( void );
 
 	#if( configASSERT_DEFINED == 1 )
@@ -539,9 +537,6 @@ BaseType_t xPortStartScheduler( void ) PRIVILEGED_FUNCTION
 	}
 	#endif /* configASSERT_DEFINED */
 
-#if( portUSING_MPU_WRAPPERS == 1 )
-	xPortRaisePrivilege();
-#endif
 	xPortStartFirstTask();
 
 	/* Should not get here as after calling xPortStartFirstTask() only tasks
@@ -677,14 +672,14 @@ void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xPMPSettings,
 				portPMPCFG_BIT_SHIFT(portSTACK_REGION_END);
 
 		xPMPSettings->uxPmpConfigRegMask[portGET_PMPCFG_IDX(portSTACK_REGION_END)] += 
-			0xFF << portPMPCFG_BIT_SHIFT(portSTACK_REGION_END);
+			(UBaseType_t)0xFF << portPMPCFG_BIT_SHIFT(portSTACK_REGION_END);
 
 		/* Invalidate all other configurable regions. */
 		for( ul = 2; ul < portNUM_CONFIGURABLE_REGIONS_REAL (xPmpInfo.nb_pmp) + 2; ul++ )
 		{
             xPMPSettings->uxRegionBaseAddress[ul] = 0UL;
             xPMPSettings->uxPmpConfigRegMask[portGET_PMPCFG_IDX(portSTACK_REGION_START + ul)] += 
-                0xFF << portPMPCFG_BIT_SHIFT(portSTACK_REGION_START + ul);
+                (UBaseType_t)0xFF << portPMPCFG_BIT_SHIFT(portSTACK_REGION_START + ul);
 		}
 	}
 	else
@@ -735,7 +730,7 @@ void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xPMPSettings,
                     portPMPCFG_BIT_SHIFT(portSTACK_REGION_END);
 
             xPMPSettings->uxPmpConfigRegMask[portGET_PMPCFG_IDX(portSTACK_REGION_END)] += 
-                (0xFF << portPMPCFG_BIT_SHIFT(portSTACK_REGION_END));
+                (UBaseType_t)0xFF << portPMPCFG_BIT_SHIFT(portSTACK_REGION_END);
 		}
 
 		lIndex = 0;
@@ -751,14 +746,14 @@ void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xPMPSettings,
 					portPMPCFG_BIT_SHIFT(portSTACK_REGION_START + ul));
 
 				xPMPSettings->uxPmpConfigRegMask[portGET_PMPCFG_IDX(portSTACK_REGION_START + ul)] += 
-					0xFF << portPMPCFG_BIT_SHIFT(portSTACK_REGION_START + ul);
+					(UBaseType_t)0xFF << portPMPCFG_BIT_SHIFT(portSTACK_REGION_START + ul);
 			}
 			else
 			{
 				/* Invalidate the region. */
 				xPMPSettings->uxRegionBaseAddress[ul] = 0UL;
                 xPMPSettings->uxPmpConfigRegMask[portGET_PMPCFG_IDX(portSTACK_REGION_START + ul)] += 
-                    0xFF << portPMPCFG_BIT_SHIFT(portSTACK_REGION_START + ul);
+                    (UBaseType_t)0xFF << portPMPCFG_BIT_SHIFT(portSTACK_REGION_START + ul);
 			}
 
 			lIndex++;
