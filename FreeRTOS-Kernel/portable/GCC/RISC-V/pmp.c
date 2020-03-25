@@ -7,9 +7,9 @@
  * @brief get the mxlen from misa register
  * 
  */
-static __attribute__((naked)) int32_t get_mxlen (void)
+static __attribute__((naked, unused)) int32_t get_mxlen (void)
 {
-    asm volatile (
+    __asm__ __volatile__ (
         " csrr a0, misa \n" /* get misa reg. */
         " bgt a0, zero, 1f \n" /* check if > 0 */
         " slli a1 , a0, 1 \n" /* shift left of 1 bit */
@@ -24,6 +24,9 @@ static __attribute__((naked)) int32_t get_mxlen (void)
         " ret \n"
 	    ::: "a0", "a1"
     );
+
+    /* just to fix warning */
+    return(0);
 }
 
 static int32_t _get_detected_granularity(size_t address) {
@@ -142,9 +145,7 @@ int32_t set_pmp_config (pmp_cfg_t * config, uint8_t * register_val)
 } 
 
 int32_t get_pmp_config (uint8_t * register_val, pmp_cfg_t * config)
-{
-    uint8_t reg_temp = 0;
-    
+{    
     if ( (NULL == config) || (NULL == register_val) ) {
         return(PMP_INVALID_POINTER);
     }
@@ -176,52 +177,52 @@ int32_t write_pmp_config (pmp_info_t * pmp_info, uint32_t region,
 
     switch (region) {
     case 0:
-        asm volatile("csrw pmpaddr0, %[addr]" ::[addr] "r"(address) :);
+        __asm__ __volatile__("csrw pmpaddr0, %[addr]" ::[addr] "r"(address) :);
         break;
     case 1:
-        asm volatile("csrw pmpaddr1, %[addr]" ::[addr] "r"(address) :);
+        __asm__ __volatile__("csrw pmpaddr1, %[addr]" ::[addr] "r"(address) :);
         break;
     case 2:
-        asm volatile("csrw pmpaddr2, %[addr]" ::[addr] "r"(address) :);
+        __asm__ __volatile__("csrw pmpaddr2, %[addr]" ::[addr] "r"(address) :);
         break;
     case 3:
-        asm volatile("csrw pmpaddr3, %[addr]" ::[addr] "r"(address) :);
+        __asm__ __volatile__("csrw pmpaddr3, %[addr]" ::[addr] "r"(address) :);
         break;
     case 4:
-        asm volatile("csrw pmpaddr4, %[addr]" ::[addr] "r"(address) :);
+        __asm__ __volatile__("csrw pmpaddr4, %[addr]" ::[addr] "r"(address) :);
         break;
     case 5:
-        asm volatile("csrw pmpaddr5, %[addr]" ::[addr] "r"(address) :);
+        __asm__ __volatile__("csrw pmpaddr5, %[addr]" ::[addr] "r"(address) :);
         break;
     case 6:
-        asm volatile("csrw pmpaddr6, %[addr]" ::[addr] "r"(address) :);
+        __asm__ __volatile__("csrw pmpaddr6, %[addr]" ::[addr] "r"(address) :);
         break;
     case 7:
-        asm volatile("csrw pmpaddr7, %[addr]" ::[addr] "r"(address) :);
+        __asm__ __volatile__("csrw pmpaddr7, %[addr]" ::[addr] "r"(address) :);
         break;
     case 8:
-        asm volatile("csrw pmpaddr8, %[addr]" ::[addr] "r"(address) :);
+        __asm__ __volatile__("csrw pmpaddr8, %[addr]" ::[addr] "r"(address) :);
         break;
     case 9:
-        asm volatile("csrw pmpaddr9, %[addr]" ::[addr] "r"(address) :);
+        __asm__ __volatile__("csrw pmpaddr9, %[addr]" ::[addr] "r"(address) :);
         break;
     case 10:
-        asm volatile("csrw pmpaddr10, %[addr]" ::[addr] "r"(address) :);
+        __asm__ __volatile__("csrw pmpaddr10, %[addr]" ::[addr] "r"(address) :);
         break;
     case 11:
-        asm volatile("csrw pmpaddr11, %[addr]" ::[addr] "r"(address) :);
+        __asm__ __volatile__("csrw pmpaddr11, %[addr]" ::[addr] "r"(address) :);
         break;
     case 12:
-        asm volatile("csrw pmpaddr12, %[addr]" ::[addr] "r"(address) :);
+        __asm__ __volatile__("csrw pmpaddr12, %[addr]" ::[addr] "r"(address) :);
         break;
     case 13:
-        asm volatile("csrw pmpaddr13, %[addr]" ::[addr] "r"(address) :);
+        __asm__ __volatile__("csrw pmpaddr13, %[addr]" ::[addr] "r"(address) :);
         break;
     case 14:
-        asm volatile("csrw pmpaddr14, %[addr]" ::[addr] "r"(address) :);
+        __asm__ __volatile__("csrw pmpaddr14, %[addr]" ::[addr] "r"(address) :);
         break;
     case 15:
-        asm volatile("csrw pmpaddr15, %[addr]" ::[addr] "r"(address) :);
+        __asm__ __volatile__("csrw pmpaddr15, %[addr]" ::[addr] "r"(address) :);
         break;
     }
 
@@ -229,7 +230,7 @@ int32_t write_pmp_config (pmp_info_t * pmp_info, uint32_t region,
     bit_shift = (region % 4) << 3;
     switch (region / 4) {
     case 0:
-        asm volatile(
+        __asm__ __volatile__(
             "li t1, 0xFF\n"
             "sll t1, t1, %[bit_shift] \n"
             "sll t2, %[cfg], %[bit_shift] \n"
@@ -241,7 +242,7 @@ int32_t write_pmp_config (pmp_info_t * pmp_info, uint32_t region,
         );
         break;
     case 1:
-        asm volatile(
+        __asm__ __volatile__(
             "li t1, 0xFF\n"
             "sll t1, t1, %[bit_shift] \n"
             "sll t2, %[cfg], %[bit_shift] \n"
@@ -253,7 +254,7 @@ int32_t write_pmp_config (pmp_info_t * pmp_info, uint32_t region,
         );
         break;
     case 2:
-        asm volatile(
+        __asm__ __volatile__(
             "li t1, 0xFF\n"
             "sll t1, t1, %[bit_shift] \n"
             "sll t2, %[cfg], %[bit_shift] \n"
@@ -265,7 +266,7 @@ int32_t write_pmp_config (pmp_info_t * pmp_info, uint32_t region,
         );
         break;
     case 3:
-        asm volatile(
+        __asm__ __volatile__(
             "li t1, 0xFF\n"
             "sll t1, t1, %[bit_shift] \n"
             "sll t2, %[cfg], %[bit_shift] \n"
@@ -281,7 +282,7 @@ int32_t write_pmp_config (pmp_info_t * pmp_info, uint32_t region,
     bit_shift = (region % 8) << 3;
     switch (region / 8) {
     case 0:
-        asm volatile(
+        __asm__ __volatile__(
             "li t1, 0xFF\n"
             "sll t1, t1, %[bit_shift] \n"
             "sll t2, %[cfg], %[bit_shift] \n"
@@ -293,7 +294,7 @@ int32_t write_pmp_config (pmp_info_t * pmp_info, uint32_t region,
         );
         break;
     case 1:
-        asm volatile(
+        __asm__ __volatile__(
             "li t1, 0xFF\n"
             "sll t1, t1, %[bit_shift] \n"
             "sll t2, %[cfg], %[bit_shift] \n"
@@ -330,28 +331,28 @@ int32_t read_pmp_config (pmp_info_t * pmp_info, uint32_t region,
 #if __riscv_xlen == 32
     switch (region / 4) {
     case 0:
-        asm volatile(
+        __asm__ __volatile__(
             "csrr %[cfg], pmpcfg0"
             : [cfg] "=r"(pmp_config_temp)
             ::
         );
         break;
     case 1:
-        asm volatile(
+        __asm__ __volatile__(
             "csrr %[cfg], pmpcfg1"
             : [cfg] "=r"(pmp_config_temp)
             ::
         );
         break;
     case 2:
-        asm volatile(
+        __asm__ __volatile__(
             "csrr %[cfg], pmpcfg2"
             : [cfg] "=r"(pmp_config_temp)
             ::
         );
         break;
     case 3:
-        asm volatile(
+        __asm__ __volatile__(
             "csrr %[cfg], pmpcfg3" 
             : [cfg] "=r"(pmp_config_temp)
             ::
@@ -363,14 +364,14 @@ int32_t read_pmp_config (pmp_info_t * pmp_info, uint32_t region,
 #elif __riscv_xlen == 64
     switch (region / 8) {
     case 0:
-        asm volatile(
+        __asm__ __volatile__(
             "csrr %[cfg], pmpcfg0"
             : [cfg] "=r"(pmp_config_temp)
             ::
         );
         break;
     case 1:
-        asm volatile(
+        __asm__ __volatile__(
             "csrr %[cfg], pmpcfg2"
             : [cfg] "=r"(pmp_config_temp)
             ::
@@ -385,52 +386,52 @@ int32_t read_pmp_config (pmp_info_t * pmp_info, uint32_t region,
 
     switch (region) {
     case 0:
-        asm volatile("csrr %[addr], pmpaddr0" : [addr] "=r"(*address)::);
+        __asm__ __volatile__("csrr %[addr], pmpaddr0" : [addr] "=r"(*address)::);
         break;
     case 1:
-       asm volatile("csrr %[addr], pmpaddr1" : [addr] "=r"(*address)::);
+       __asm__ __volatile__("csrr %[addr], pmpaddr1" : [addr] "=r"(*address)::);
         break;
     case 2:
-        asm volatile("csrr %[addr], pmpaddr2" : [addr] "=r"(*address)::);
+        __asm__ __volatile__("csrr %[addr], pmpaddr2" : [addr] "=r"(*address)::);
         break;
     case 3:
-        asm volatile("csrr %[addr], pmpaddr3" : [addr] "=r"(*address)::);
+        __asm__ __volatile__("csrr %[addr], pmpaddr3" : [addr] "=r"(*address)::);
         break;
     case 4:
-        asm volatile("csrr %[addr], pmpaddr4" : [addr] "=r"(*address)::);
+        __asm__ __volatile__("csrr %[addr], pmpaddr4" : [addr] "=r"(*address)::);
         break;
     case 5:
-        asm volatile("csrr %[addr], pmpaddr5" : [addr] "=r"(*address)::);
+        __asm__ __volatile__("csrr %[addr], pmpaddr5" : [addr] "=r"(*address)::);
         break;
     case 6:
-        asm volatile("csrr %[addr], pmpaddr6" : [addr] "=r"(*address)::);
+        __asm__ __volatile__("csrr %[addr], pmpaddr6" : [addr] "=r"(*address)::);
         break;
     case 7:
-        asm volatile("csrr %[addr], pmpaddr7" : [addr] "=r"(*address)::);
+        __asm__ __volatile__("csrr %[addr], pmpaddr7" : [addr] "=r"(*address)::);
         break;
     case 8:
-        asm volatile("csrr %[addr], pmpaddr8" : [addr] "=r"(*address)::);
+        __asm__ __volatile__("csrr %[addr], pmpaddr8" : [addr] "=r"(*address)::);
         break;
     case 9:
-        asm volatile("csrr %[addr], pmpaddr9" : [addr] "=r"(*address)::);
+        __asm__ __volatile__("csrr %[addr], pmpaddr9" : [addr] "=r"(*address)::);
         break;
     case 10:
-        asm volatile("csrr %[addr], pmpaddr10" : [addr] "=r"(*address)::);
+        __asm__ __volatile__("csrr %[addr], pmpaddr10" : [addr] "=r"(*address)::);
         break;
     case 11:
-        asm volatile("csrr %[addr], pmpaddr11" : [addr] "=r"(*address)::);
+        __asm__ __volatile__("csrr %[addr], pmpaddr11" : [addr] "=r"(*address)::);
         break;
     case 12:
-        asm volatile("csrr %[addr], pmpaddr12" : [addr] "=r"(*address)::);
+        __asm__ __volatile__("csrr %[addr], pmpaddr12" : [addr] "=r"(*address)::);
         break;
     case 13:
-        asm volatile("csrr %[addr], pmpaddr13" : [addr] "=r"(*address)::);
+        __asm__ __volatile__("csrr %[addr], pmpaddr13" : [addr] "=r"(*address)::);
         break;
     case 14:
-        asm volatile("csrr %[addr], pmpaddr14" : [addr] "=r"(*address)::);
+        __asm__ __volatile__("csrr %[addr], pmpaddr14" : [addr] "=r"(*address)::);
         break;
     case 15:
-        asm volatile("csrr %[addr], pmpaddr15" : [addr] "=r"(*address)::);
+        __asm__ __volatile__("csrr %[addr], pmpaddr15" : [addr] "=r"(*address)::);
         break;
     }
 
@@ -448,7 +449,7 @@ int32_t read_pmp_configs (size_t * configs, uint32_t pmp_region)
     jump_idx = (NB_PMP_CFG_REG - (pmp_region / SIZE_PMP_CFG_REG)) << 3;
 
 #if __riscv_xlen == 32
-    asm volatile (
+    __asm__ __volatile__ (
         "la t0, 1f \n"
         "add t0, t0, %[jump_idx] \n"
         "jr t0 \n"
@@ -467,7 +468,7 @@ int32_t read_pmp_configs (size_t * configs, uint32_t pmp_region)
         : "t1", "t2", "t3", "t4"
     );
 #elif __riscv_xlen == 64
-    asm volatile (
+    __asm__ __volatile__ (
         "la t0, 1f \n"
         "add t0, t0, %[jump_idx] \n"
         "jr t0 \n"
@@ -499,7 +500,7 @@ int32_t write_pmp_configs (size_t * configs, uint32_t pmp_region)
     jump_idx = (NB_PMP_CFG_REG - (pmp_region / SIZE_PMP_CFG_REG)) << 3;
 
 #if __riscv_xlen == 32
-    asm volatile (
+    __asm__ __volatile__ (
         "la t0, 1f \n"
         "add t0, t0, %[jump_idx] \n"
         "jr t0 \n"
@@ -518,7 +519,7 @@ int32_t write_pmp_configs (size_t * configs, uint32_t pmp_region)
         : "t0", "t1", "t2", "t3", "t4"
     );
 #elif __riscv_xlen == 64
-    asm volatile (
+    __asm__ __volatile__ (
         "la t0, 1f \n"
         "add t0, t0, %[jump_idx] \n"
         "jr t0 \n"
@@ -554,7 +555,7 @@ int32_t write_pmp_addrs (size_t * address, uint32_t pmp_region)
 #if __riscv_xlen == 32
     inst_offset = (MAX_PMP_REGION - pmp_region) << 3;
 
-    asm volatile (
+    __asm__ __volatile__ (
         "la t1, 1f \n"
         "add t2, t1, %[inst_offset] \n"
         "jr t2 \n"
@@ -599,7 +600,7 @@ int32_t write_pmp_addrs (size_t * address, uint32_t pmp_region)
 #elif __riscv_xlen == 64
     inst_offset = (MAX_PMP_REGION - pmp_region) << 3;
 
-    asm volatile (
+    __asm__ __volatile__ (
         "la t1, 1f \n"
         "add t2, t1, %[inst_offset] \n"
         "jr t2 \n"
@@ -663,7 +664,7 @@ int32_t read_pmp_addrs (size_t * address, uint32_t pmp_region)
 #if __riscv_xlen == 32
     inst_offset = (MAX_PMP_REGION - pmp_region) << 3;
 
-    asm volatile (
+    __asm__ __volatile__ (
         "la t1, 1f \n"
         "add t2, t1, %[inst_offset] \n"
         "jr t2 \n"
@@ -708,7 +709,7 @@ int32_t read_pmp_addrs (size_t * address, uint32_t pmp_region)
 #elif __riscv_xlen == 64
     inst_offset = (MAX_PMP_REGION - pmp_region) << 3;
 
-    asm volatile (
+    __asm__ __volatile__ (
         "la t1, 1f \n"
         "add t2, t1, %[inst_offset] \n"
         "jr t2 \n"
@@ -795,7 +796,7 @@ int32_t napot_addr_modifier (size_t granularity,
     }
 
     // in case the whole adressable space is requested
-    if (-1 == size) {
+    if ((size_t)-1 == size) {
         size = size >> 1;
         size += 1;
         size = size >> 1;
@@ -810,7 +811,7 @@ int32_t napot_addr_modifier (size_t granularity,
         if(0 != ((size >> index) & 1)) {
             if(index + 1 == sizeof(size_t)) {
                 break;
-            } else if( 0 == (size >> index + 1) ) {
+            } else if( 0 == (size >> (index + 1)) ) {
                 break;   
             } else {
                 return(PMP_INVALID_NAPOT_SIZE);

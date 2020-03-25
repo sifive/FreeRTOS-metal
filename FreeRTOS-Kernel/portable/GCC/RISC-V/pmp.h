@@ -81,7 +81,7 @@ enum pmp_error_e {
     /* in case of success */
     PMP_SUCCESS = 0,
     /* default error, the cause is blurry (probably undesired execution path) */
-    PMP_DEFAULT_ERROR = 0x80000000,
+    PMP_DEFAULT_ERROR = (int)0x80000000,
     /* invalid pointer */
     PMP_INVALID_POINTER,
     /* error system garnularity incompatible  */

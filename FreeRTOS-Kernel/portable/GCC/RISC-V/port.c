@@ -104,7 +104,11 @@ static void prvSetupPMP( void ) PRIVILEGED_FUNCTION
 
 	uint8_t ucDefaultAttribute;
 	size_t uxDefaultBaseAddr;
-	int32_t lResult = PMP_DEFAULT_ERROR;
+    /**
+     *  considered as unused in certain cases because of macro
+     * configASSERT_DEFINED
+     */
+	int32_t lResult __attribute__((unused)) = PMP_DEFAULT_ERROR;
 
 	if(0 == xPmpInfo.granularity) {
 		lResult = init_pmp (&xPmpInfo);
@@ -213,9 +217,12 @@ BaseType_t xPortFreeRTOSInit( StackType_t xIsrTop ) PRIVILEGED_FUNCTION
  */
 #if( portUSING_MPU_WRAPPERS == 1 )
     {
-        extern uint32_t __privileged_data_start__[];
-        extern uint32_t __privileged_data_end__[];
-        asm volatile (
+        /** 
+         * Considered by the compiler as unused because of the inline asm block
+         */
+        extern uint32_t __privileged_data_start__[] __attribute__((unused));
+        extern uint32_t __privileged_data_end__[] __attribute__((unused));
+        __asm__ __volatile__ (
               /* Zero the privileged_data segment. */
             "la t1, __privileged_data_start__ \n"
             "la t2, __privileged_data_end__ \n"
@@ -289,8 +296,10 @@ BaseType_t xPortFreeRTOSInit( StackType_t xIsrTop ) PRIVILEGED_FUNCTION
 	/* There is a clint then interrupts can branch directly to the FreeRTOS 
 	 * trap handler.
 	 */
- 	 __asm volatile ("la t0, freertos_risc_v_trap_handler\n"
-	                  "csrw mtvec, t0\n");
+ 	__asm__ __volatile__ (
+        "la t0, freertos_risc_v_trap_handler\n"
+	    "csrw mtvec, t0\n"
+    );
 #else
 # warning "*** The interrupt controller must to be configured before (ouside of this file). ***"
 #endif
@@ -316,7 +325,7 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
 												xMPU_SETTINGS * xPMPSettings) PRIVILEGED_FUNCTION
 {
     /* Compute jump offset to avoid configure unuse PMP */
-	asm volatile (
+	__asm__ __volatile__ (
 		"li t0, 13 \n" /* maximum number of reconfigurable PMP for a core */
 		"sub a2, t0, a0 \n"
 		"slli a2, a2, 3 \n" /* compute the jump offset */
@@ -325,7 +334,7 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
 
     /* clear pmp config before setting addr */
 #if __riscv_xlen == 32
-    asm volatile (
+    __asm__ __volatile__ (
         "li t1, 0x18181818 \n"
         /** 
          * we avoid disabling permanent PMP config, therefore those region mask
@@ -339,7 +348,7 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
         :::"t1", "t2"
     );
 #elif __riscv_xlen == 64
-    asm volatile (
+    __asm__ __volatile__ (
         "li t1, 0x1818181818181818 \n"
         /** 
          * we avoid disabling permanent PMP config, therefore those region mask
@@ -358,7 +367,7 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
      * they are configured once at the initialization of the scheduler
      */
 #if __riscv_xlen == 32
-	asm volatile (
+	__asm__ __volatile__ (
 		"add t5, a1, 32 \n" /* get pmp address configs */
         "la t1, 1f \n" /* compute the jump address */
         "add t2, t1, a2 \n"
@@ -393,7 +402,7 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
         ::: "t1", "t2", "t3", "t4"
     );
 #elif __riscv_xlen == 64
-	asm volatile (
+	__asm__ __volatile__ (
 		"add t5, a1, 32 \n" /* get pmp address configs */
         "la t1, 1f \n" /* compute the jump address */
         "add t2, t1, a2 \n"
@@ -432,7 +441,7 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
 	
 #if __riscv_xlen == 32
     /* Compute jump offset to avoid configure unuse PMP 32bits version */
-	asm volatile (
+	__asm__ __volatile__ (
         "addi a0, a0, 2 \n"
 		"srli t1, a0, 2 \n" /* divide by 4 */
 		"li t2, 3 \n" /* number of config regs (4) */
@@ -442,7 +451,7 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
 	);
 #elif __riscv_xlen == 64
     /* Compute jump offset to avoid configure unuse PMP 64bits version */
-	asm volatile (
+	__asm__ __volatile__ (
         "addi a0, a0, 2 \n"
 		"srli t1, a0, 3 \n" /* divide by 8 */
 		"li t2, 1 \n" /* number of config regs (2) */
@@ -454,7 +463,7 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
 		
 	/* Configure PMP mode (rights and mode) */
 #if __riscv_xlen == 32
-	asm volatile (
+	__asm__ __volatile__ (
 		"add t3, a1, 16 \n" /* get pmp config mask */
 
         "la t0, 1f \n"
@@ -484,7 +493,7 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
         ::: "t0", "t1", "t2", "t3", "t4"
 	);
 #elif __riscv_xlen == 64
-	asm volatile (
+	__asm__ __volatile__ (
 		"add t3, a1, 16 \n" /* get pmp config mask */
 
         "la t0, 1f \n"
@@ -504,7 +513,7 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
         ::: "t0", "t1", "t2", "t3", "t4"
 	);
 #endif
-	asm volatile (
+	__asm__ __volatile__ (
 	    "ret \n"
 		:::
 	);
@@ -527,10 +536,9 @@ BaseType_t xPortStartScheduler( void ) PRIVILEGED_FUNCTION
 
 		/* Check the least significant two bits of mtvec are 00 - indicating
 		single vector mode. */
-		__asm volatile
-		(
-		"	csrr %0, mtvec		\n"
-		: "=r"( mtvec )
+		__asm__ __volatile__ (
+            "	csrr %0, mtvec		\n"
+            : "=r"( mtvec )
 		);
 
 		configASSERT( ( mtvec & 0x03UL ) == 0 );
@@ -565,35 +573,32 @@ __attribute__((naked)) void vPortSyscall( unsigned int Value )
 	/* Remove compiler warning about unused parameter. */
 	( void ) Value;
 
- 	__asm volatile 
-	( 
-	"	ecall 		\n"
- 	"	ret 		\n"
-	:::
+ 	__asm__ __volatile__ ( 
+        "	ecall 		\n"
+        "	ret 		\n"
+        :::
 	);
 }
 /*-----------------------------------------------------------*/
 
 __attribute__ (( naked )) void vRaisePrivilege( void )
 {
-	__asm volatile
-	(
-	"	li	a0,%0 	\n"
-	"	ecall 		\n"
- 	"	ret 		\n"
-	::"i"(portSVC_SWITCH_TO_MACHINE):
+	__asm__ __volatile__ (
+        "	li	a0,%0 	\n"
+        "	ecall 		\n"
+        "	ret 		\n"
+        ::"i"(portSVC_SWITCH_TO_MACHINE):
 	);
 }
 /*-----------------------------------------------------------*/
 
 __attribute__ (( naked )) void vResetPrivilege( void ) 
 {
-	__asm volatile
-	(
-	"	li	a0,%0 	\n"
-	"	ecall 		\n"
- 	"	ret 		\n"
-	::"i"(portSVC_SWITCH_TO_USER):
+	__asm__ __volatile__ (
+        "	li	a0,%0 	\n"
+        "	ecall 		\n"
+        "	ret 		\n"
+        ::"i"(portSVC_SWITCH_TO_USER):
 	);
 }
 /*-----------------------------------------------------------*/
@@ -615,7 +620,11 @@ void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xPMPSettings,
 	int32_t lIndex;
 	uint32_t ul;
 
-	int32_t lResult = PMP_DEFAULT_ERROR;
+    /**
+     *  considered as unused in certain cases because of macro
+     * configASSERT_DEFINED
+     */
+	int32_t lResult __attribute__((unused)) = PMP_DEFAULT_ERROR;
 	size_t uxBaseAddressChecked = 0;
 
 	if(0 == xPmpInfo.granularity) {
