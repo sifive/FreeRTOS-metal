@@ -116,7 +116,7 @@ if __name__ == "__main__" :
     for template_file in args.input_file :
         # check file name format 
         if(templateFileNamePattern.match(template_file) is None) :
-            raise ValueError (f"{template_file} doesn't match *.h.in pattern")
+            raise ValueError ("{template_file} doesn't match *.h.in pattern".format(template_file=template_file))
 
         # remove .in and path 
         output_file = os.path.splitext(os.path.basename(template_file))[0]
