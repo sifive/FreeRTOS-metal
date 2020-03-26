@@ -552,7 +552,11 @@ switch_context:
 	lw a0, xPmpInfo
     li a1, 3
     sub a0, a0, a1
+# if __riscv_xlen == 32 
     addi a1, s9, 4
+# elif __riscv_xlen == 64 
+    addi a1, s9, 8
+# endif /* __riscv_xlen == 64 */
     jal vPortPmpSwitch   
 	fence.i
 #endif
@@ -615,7 +619,11 @@ xPortStartFirstTask:
 	lw a0, xPmpInfo
     li a1, 3
     sub a0, a0, a1
-	addi a1, t2, 4
+# if __riscv_xlen == 32 
+    addi a1, t2, 4
+# elif __riscv_xlen == 64 
+    addi a1, t2, 8
+# endif /* __riscv_xlen == 64 */
 	jal vPortPmpSwitch
 # endif
 	
