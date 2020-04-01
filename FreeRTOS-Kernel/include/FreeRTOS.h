@@ -61,6 +61,12 @@ extern "C" {
 /* Definitions specific to the port being used. */
 #include "portable.h"
 
+/* Picolibc doesn't have reent.h */
+#ifdef _PICOLIBC__
+	#undef configUSE_NEWLIB_REENTRANT
+	#define configUSE_NEWLIB_REENTRANT 0
+#endif
+
 /* Must be defaulted before configUSE_NEWLIB_REENTRANT is used below. */
 #ifndef configUSE_NEWLIB_REENTRANT
 	#define configUSE_NEWLIB_REENTRANT 0
@@ -70,6 +76,10 @@ extern "C" {
 #if ( configUSE_NEWLIB_REENTRANT == 1 )
 	#include <reent.h>
 #endif
+#if ( configUSE_PICOLIBC_TLS == 1 )
+	#include <picotls.h>
+#endif
+
 /*
  * Check all the required application specific macros have been defined.
  * These macros are application specific and (as downloaded) are defined
@@ -1169,6 +1179,9 @@ typedef struct xSTATIC_TCB
 	#endif
 	#if ( configUSE_NEWLIB_REENTRANT == 1 )
 		struct	_reent	xDummy17;
+	#endif
+	#if ( configUSE_PICOLIBC_TLS == 1 && configTLS_STATIC_SIZE > 0 )
+		uint8_t			uxDummy17[configTLS_STATIC_SIZE];
 	#endif
 	#if ( configUSE_TASK_NOTIFICATIONS == 1 )
 		uint32_t 		ulDummy18;
