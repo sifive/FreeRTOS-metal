@@ -317,6 +317,9 @@ typedef struct tskTaskControlBlock 			/* The old naming convention is used to pr
 		implements a system-wide malloc() that must be provided with locks. */
 		struct	_reent xNewLib_reent;
 	#endif
+	#if ( configUSE_PICOLIBC_TLS == 1 && configTLS_STATIC_SIZE > 0 )
+		uint8_t ucTls[configTLS_STATIC_SIZE];
+	#endif
 
 	#if( configUSE_TASK_NOTIFICATIONS == 1 )
 		volatile uint32_t ulNotifiedValue;
@@ -338,6 +341,21 @@ typedef struct tskTaskControlBlock 			/* The old naming convention is used to pr
 	#endif
 
 } tskTCB;
+
+#if ( configUSE_PICOLIBC_TLS == 1 )
+extern uint8_t __tls_size[];
+
+/* Place symbols in the output file reporting the allocated TLS area
+ * and the required TLS area. These are used in a post-link validation
+ * check to make sure they match
+ */
+#define str(a) #a
+#define xstr(a) str(a)
+__asm(".global __tls_alloc\n.set __tls_alloc, " xstr(configTLS_STATIC_SIZE));
+__asm(".global __tls_size\n");
+#undef str
+#undef xstr
+#endif
 
 /* The old tskTCB name is maintained above then typedefed to the new TCB_t name
 below to enable the use of older kernel aware debuggers. */
@@ -1009,6 +1027,18 @@ UBaseType_t x;
 	{
 		/* Initialise this task's Newlib reent structure. */
 		_REENT_INIT_PTR( ( &( pxNewTCB->xNewLib_reent ) ) );
+	}
+	#endif
+	#if ( configUSE_PICOLIBC_TLS == 1 && configTLS_STATIC_SIZE > 0 )
+	{
+		/* Make sure we reserved enough space for the TLS variables. That
+		 * value is determined at link time, yet we want it statically allocated
+		 * in the TCB, so all we can do here is make sure it's 'big enough'
+		 */
+		configASSERT( ( uintptr_t ) __tls_size <= configTLS_STATIC_SIZE );
+
+		/* Initialize this task's TLS values. */
+		_init_tls( &pxNewTCB->ucTls );
 	}
 	#endif
 
@@ -2067,6 +2097,13 @@ BaseType_t xReturn;
 		}
 		#endif /* configUSE_NEWLIB_REENTRANT */
 
+		#if ( configUSE_PICOLIBC_TLS == 1 && configTLS_STATIC_SIZE > 0 )
+		{
+			/* Switch TLS pointer */
+			_set_tls( &( pxCurrentTCB->ucTls ) );
+		}
+		#endif
+
 		xNextTaskUnblockTime = portMAX_DELAY;
 		xSchedulerRunning = pdTRUE;
 		xTickCount = ( TickType_t ) configINITIAL_TICK_COUNT;
@@ -3074,6 +3111,12 @@ void vTaskSwitchContext( void )
 			_impure_ptr = &( pxCurrentTCB->xNewLib_reent );
 		}
 		#endif /* configUSE_NEWLIB_REENTRANT */
+		#if ( configUSE_PICOLIBC_TLS == 1 && configTLS_STATIC_SIZE > 0 )
+		{
+			/* Switch TLS pointer */
+			_set_tls( &( pxCurrentTCB->ucTls ) );
+		}
+		#endif
 	}
 }
 /*-----------------------------------------------------------*/
