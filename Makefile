@@ -1,4 +1,6 @@
 
+FREERTOS_METAL_VENV_PATH ?= venv
+
 override CURRENT_DIR := $(patsubst %/,%, $(dir $(abspath $(firstword $(MAKEFILE_LIST)))))
 
 override SOURCE_DIR := $(CURRENT_DIR)/FreeRTOS-Kernel
@@ -63,9 +65,9 @@ libFreeRTOS.a : headers $(OBJS)
 	$(HIDE) mkdir -p $(BUILD_DIR)/lib
 	$(HIDE) $(AR) $(ARFLAGS) $(BUILD_DIR)/lib/libFreeRTOS.a $(OBJS)
 
-headers : venv/.stamp
+headers : $(FREERTOS_METAL_VENV_PATH)/.stamp
 	$(HIDE) mkdir -p $(BUILD_DIR)/include
-	. venv/bin/activate && python3 $(CURRENT_DIR)/scripts/parser_auto_header.py --input_file $(HEADER_TEMPLATES) --output_dir $(BUILD_DIR)/include
+	. $(FREERTOS_METAL_VENV_PATH)/bin/activate && $(FREERTOS_METAL_VENV_PATH)/bin/python3 $(CURRENT_DIR)/scripts/parser_auto_header.py --input_file $(HEADER_TEMPLATES) --output_dir $(BUILD_DIR)/include
 
 $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.c err headers
 	$(HIDE) mkdir -p $(dir $@)
@@ -83,18 +85,18 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.asm err headers
 	$(HIDE) mkdir -p $(dir $@)
 	$(HIDE) $(CC) -D__ASSEMBLY__ -c -o $@ $(ASFLAGS) $<
 
-test_config : venv/.stamp
+test_config : $(FREERTOS_METAL_VENV_PATH)/.stamp
 	$(info MAKE_CONFIG:$(MAKE_CONFIG))
-	. venv/bin/activate && python3 $(CURRENT_DIR)/scripts/parser_auto_header.py
+	. $(FREERTOS_METAL_VENV_PATH)/bin/activate && $(FREERTOS_METAL_VENV_PATH)/bin/python3 $(CURRENT_DIR)/scripts/parser_auto_header.py
 
-venv/.stamp: venv/bin/activate requirements.txt
-	. venv/bin/activate && pip install --upgrade pip
-	. venv/bin/activate && pip install -r requirements.txt
-	@echo "Remember to source venv/bin/activate!"
+$(FREERTOS_METAL_VENV_PATH)/.stamp: $(FREERTOS_METAL_VENV_PATH)/bin/activate requirements.txt
+	. $(FREERTOS_METAL_VENV_PATH)/bin/activate && $(FREERTOS_METAL_VENV_PATH)/bin/pip install pip==20.0.1
+	. $(FREERTOS_METAL_VENV_PATH)/bin/activate && $(FREERTOS_METAL_VENV_PATH)/bin/pip install -r requirements.txt
+	@echo "Remember to source $(FREERTOS_METAL_VENV_PATH)/bin/activate!"
 	touch $@
 
-venv/bin/activate:
-	python3 -m venv venv
+$(FREERTOS_METAL_VENV_PATH)/bin/activate:
+	python3 -m venv $(FREERTOS_METAL_VENV_PATH)
 
 .PHONY: err
 err: 
