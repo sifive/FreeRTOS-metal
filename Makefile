@@ -1,7 +1,10 @@
 
-FREERTOS_METAL_VENV_PATH ?= venv
 
 override CURRENT_DIR := $(patsubst %/,%, $(dir $(abspath $(firstword $(MAKEFILE_LIST)))))
+
+ifeq ($(FREERTOS_METAL_VENV_PATH),)
+	override FREERTOS_METAL_VENV_PATH := $(CURRENT_DIR)/venv
+endif
 
 override SOURCE_DIR := $(CURRENT_DIR)/FreeRTOS-Kernel
 BUILD_DIR ?= $(CURRENT_DIR)/build
