@@ -454,10 +454,10 @@ int32_t read_pmp_configs (size_t * configs, uint32_t pmp_region)
         "add t0, t0, %[jump_idx] \n"
         "jr t0 \n"
         "1: \n"
-        "csrr t4, pmpcfg3 \n"
-        "sw t4, 12(%[configs]) \n"
-        "csrr t3, pmpcfg2 \n"
-        "sw t3, 8(%[configs]) \n"
+        "csrr t2, pmpcfg3 \n"
+        "sw t2, 12(%[configs]) \n"
+        "csrr t1, pmpcfg2 \n"
+        "sw t1, 8(%[configs]) \n"
         "csrr t2, pmpcfg1 \n"
         "sw t2, 4(%[configs]) \n"
         "csrr t1, pmpcfg0 \n"
@@ -465,7 +465,7 @@ int32_t read_pmp_configs (size_t * configs, uint32_t pmp_region)
         :
         : [configs] "r" (configs),
           [jump_idx] "r" (jump_idx)
-        : "t1", "t2", "t3", "t4"
+        : "t0", "t1", "t2"
     );
 #elif __riscv_xlen == 64
     __asm__ __volatile__ (
@@ -480,7 +480,7 @@ int32_t read_pmp_configs (size_t * configs, uint32_t pmp_region)
         :
         : [configs] "r" (configs),
           [jump_idx] "r" (jump_idx)
-        : "t1", "t2"
+        : "t0", "t1", "t2"
     );
 #else
     return (PMP_ERR_UNSUPPORTED);
@@ -505,10 +505,10 @@ int32_t write_pmp_configs (size_t * configs, uint32_t pmp_region)
         "add t0, t0, %[jump_idx] \n"
         "jr t0 \n"
         "1: \n"
-        "lw t4, 12(%[configs]) \n"
-        "csrw pmpcfg3, t4 \n"
-        "lw t3, 8(%[configs]) \n"
-        "csrw pmpcfg2, t3 \n"
+        "lw t2, 12(%[configs]) \n"
+        "csrw pmpcfg3, t2 \n"
+        "lw t1, 8(%[configs]) \n"
+        "csrw pmpcfg2, t1 \n"
         "lw t2, 4(%[configs]) \n"
         "csrw pmpcfg1, t2 \n"
         "lw t1, 0(%[configs]) \n"
@@ -516,7 +516,7 @@ int32_t write_pmp_configs (size_t * configs, uint32_t pmp_region)
         :
         : [configs] "r" (configs),
           [jump_idx] "r" (jump_idx)
-        : "t0", "t1", "t2", "t3", "t4"
+        : "t0", "t1", "t2"
     );
 #elif __riscv_xlen == 64
     __asm__ __volatile__ (
@@ -560,34 +560,34 @@ int32_t write_pmp_addrs (size_t * address, uint32_t pmp_region)
         "add t2, t1, %[inst_offset] \n"
         "jr t2 \n"
         "1: \n"
-        "lw t4, 60(%[address]) \n"
-        "csrw pmpaddr15, t4 \n"
-        "lw t3, 56(%[address]) \n"
-        "csrw pmpaddr14, t3 \n"
+        "lw t2, 60(%[address]) \n"
+        "csrw pmpaddr15, t2 \n"
+        "lw t1, 56(%[address]) \n"
+        "csrw pmpaddr14, t1 \n"
         "lw t2, 52(%[address]) \n"
         "csrw pmpaddr13, t2 \n"
         "lw t1, 48(%[address]) \n"
         "csrw pmpaddr12, t1 \n"
-        "lw t4, 44(%[address]) \n"
-        "csrw pmpaddr11, t4 \n"
-        "lw t3, 40(%[address]) \n"
-        "csrw pmpaddr10, t3 \n"
+        "lw t1, 44(%[address]) \n"
+        "csrw pmpaddr11, t2 \n"
+        "lw t1, 40(%[address]) \n"
+        "csrw pmpaddr10, t1 \n"
         "lw t2, 36(%[address]) \n"
         "csrw pmpaddr9, t2 \n"
         "lw t1, 32(%[address]) \n"
         "csrw pmpaddr8, t1 \n"
-        "lw t4, 28(%[address]) \n"
-        "csrw pmpaddr7, t4 \n"
-        "lw t3, 24(%[address]) \n"
-        "csrw pmpaddr6, t3 \n"
+        "lw t2, 28(%[address]) \n"
+        "csrw pmpaddr7, t2 \n"
+        "lw t1, 24(%[address]) \n"
+        "csrw pmpaddr6, t1 \n"
         "lw t2, 20(%[address]) \n"
         "csrw pmpaddr5, t2 \n"
         "lw t1, 16(%[address]) \n"
         "csrw pmpaddr4, t1 \n"
-        "lw t4, 12(%[address]) \n"
-        "csrw pmpaddr3, t4 \n"
-        "lw t3, 8(%[address]) \n"
-        "csrw pmpaddr2, t3 \n"
+        "lw t2, 12(%[address]) \n"
+        "csrw pmpaddr3, t2 \n"
+        "lw t1, 8(%[address]) \n"
+        "csrw pmpaddr2, t1 \n"
         "lw t2, 4(%[address]) \n"
         "csrw pmpaddr1, t2 \n"
         "lw t1, 0(%[address]) \n"
@@ -595,7 +595,7 @@ int32_t write_pmp_addrs (size_t * address, uint32_t pmp_region)
         :
         : [address] "r" (address),
             [inst_offset] "r" (inst_offset)
-        : "t1", "t2", "t3", "t4"
+        : "t1", "t2"
     );
 #elif __riscv_xlen == 64
     inst_offset = (MAX_PMP_REGION - pmp_region) << 3;
@@ -669,34 +669,34 @@ int32_t read_pmp_addrs (size_t * address, uint32_t pmp_region)
         "add t2, t1, %[inst_offset] \n"
         "jr t2 \n"
         "1: \n"
-        "csrr t4, pmpaddr15 \n"
-        "sw t4, 60(%[address]) \n"
-        "csrr t3, pmpaddr14 \n"
-        "sw t3, 56(%[address]) \n"
+        "csrr t2, pmpaddr15 \n"
+        "sw t2, 60(%[address]) \n"
+        "csrr t1, pmpaddr14 \n"
+        "sw t1, 56(%[address]) \n"
         "csrr t2, pmpaddr13 \n"
         "sw t2, 52(%[address]) \n"
         "csrr t1, pmpaddr12 \n"
         "sw t1, 48(%[address]) \n"
-        "csrr t4, pmpaddr11 \n"
-        "sw t4, 44(%[address]) \n"
-        "csrr t3, pmpaddr10 \n"
-        "sw t3, 40(%[address]) \n"
+        "csrr t2, pmpaddr11 \n"
+        "sw t2, 44(%[address]) \n"
+        "csrr t1, pmpaddr10 \n"
+        "sw t1, 40(%[address]) \n"
         "csrr t2, pmpaddr9 \n"
         "sw t2, 36(%[address]) \n"
         "csrr t1, pmpaddr8 \n"
         "sw t1, 32(%[address]) \n"
-        "csrr t4, pmpaddr7 \n"
-        "sw t4, 28(%[address]) \n"
-        "csrr t3, pmpaddr6 \n"
-        "sw t3, 24(%[address]) \n"
+        "csrr t2, pmpaddr7 \n"
+        "sw t2, 28(%[address]) \n"
+        "csrr t1, pmpaddr6 \n"
+        "sw t1, 24(%[address]) \n"
         "csrr t2, pmpaddr5 \n"
         "sw t2, 20(%[address]) \n"
         "csrr t1, pmpaddr4 \n"
         "sw t1, 16(%[address]) \n"
-        "csrr t4, pmpaddr3 \n"
-        "sw t4, 12(%[address]) \n"
-        "csrr t3, pmpaddr2 \n"
-        "sw t3, 8(%[address]) \n"
+        "csrr t2, pmpaddr3 \n"
+        "sw t2, 12(%[address]) \n"
+        "csrr t1, pmpaddr2 \n"
+        "sw t1, 8(%[address]) \n"
         "csrr t2, pmpaddr1 \n"
         "sw t2, 4(%[address]) \n"
         "csrr t1, pmpaddr0 \n"
@@ -704,7 +704,7 @@ int32_t read_pmp_addrs (size_t * address, uint32_t pmp_region)
         :
         : [address] "r" (address),
             [inst_offset] "r" (inst_offset)
-        : "t1", "t2", "t3", "t4"
+        : "t1", "t2"
     );
 #elif __riscv_xlen == 64
     inst_offset = (MAX_PMP_REGION - pmp_region) << 3;

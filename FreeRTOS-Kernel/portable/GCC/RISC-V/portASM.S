@@ -92,16 +92,13 @@
 #define portasmFPU_CONTEXT_SIZE	  0
 
 #define PORT_CONTEXT_xIDX(X)		(X) /* index into "raw" for register x? */
-#define PORT_CONTEXT_mcauseIDX		(32)
-#define PORT_CONTEXT_mepcIDX		(33)
-#define PORT_CONTEXT_mstatusIDX		(34)
-#define PORT_CONTEXT_rufIDX			(35)
+#define PORT_CONTEXT_mepcIDX		(32)
+#define PORT_CONTEXT_mstatusIDX		(33)
 #define PORT_CONTEXT_fpuIDX(X)		(36 + X)
 #define PORT_CONTEXT_lastIDX		(36 + portasmFPU_CONTEXT_SIZE + portasmADDITIONAL_CONTEXT_SIZE)
 
 /* used in assembler, as byte offsets from the start of the context */
 #define PORT_CONTEXT_xOFFSET( X )   (PORT_CONTEXT_xIDX(X)    * portWORD_SIZE)
-#define PORT_CONTEXT_mcauseOFFSET   (PORT_CONTEXT_mcauseIDX  * portWORD_SIZE)
 #define PORT_CONTEXT_mepcOFFSET     (PORT_CONTEXT_mepcIDX    * portWORD_SIZE)
 #define PORT_CONTEXT_mstatusOFFSET  (PORT_CONTEXT_mstatusIDX * portWORD_SIZE)
 #define PORT_CONTEXT_rufOFFSET   	(PORT_CONTEXT_rufIDX  	 * portWORD_SIZE)
@@ -223,21 +220,19 @@ definitions. */
     store_x  x31, PORT_CONTEXT_xOFFSET(31)(sp)		/* x31(t6)		Temporary register */
 
 	/* Save mcause, mepc & mstatus state */
-    csrr s2, mcause
-	csrr s3, mepc
-	csrr s4, mstatus		/* Required for MPIE bit. */
-	store_x s2, PORT_CONTEXT_mcauseOFFSET(sp)
-	store_x s3, PORT_CONTEXT_mepcOFFSET(sp)
-	store_x s4, PORT_CONTEXT_mstatusOFFSET(sp)
+	csrr a4, mepc
+	csrr a5, mstatus		/* Required for MPIE bit. */
+	store_x a4, PORT_CONTEXT_mepcOFFSET(sp)
+	store_x a5, PORT_CONTEXT_mstatusOFFSET(sp)
 	.endm
 /*************************************************************/
 
 .macro portRESTORE_BaseReg
 	/* Restore mepc & mstatus state */
-	load_x  s3, PORT_CONTEXT_mepcOFFSET(sp)
-	load_x  s4, PORT_CONTEXT_mstatusOFFSET(sp)
-	csrw	mepc, s3
-	csrw	mstatus, s4
+	load_x  t0, PORT_CONTEXT_mepcOFFSET(sp)
+	load_x  t1, PORT_CONTEXT_mstatusOFFSET(sp)
+	csrw	mepc, t0
+	csrw	mstatus, t1
 
     load_x  x1,  PORT_CONTEXT_xOFFSET(1)(sp)		/* x1(ra)		Return address */
 													/* x2(sp) ***** Should be save ouside this macro */
@@ -406,14 +401,13 @@ ecall_end:
 
 ecall_yield:
 	portSAVE_BaseReg
-	/* s2 = mcause
-	 * s3 = mepc
-	 * s4 = mstatus
-	 * s9 will be use for pxCurrentTCB
-	 * s11 will be use to save sp
+	/* a4 = mepc
+	 * a5 = mstatus
+	 * s0 will be use for pxCurrentTCB
+	 * s1 will be use to save sp
 	 */
 	/* Synchronous so updated exception return address to the instruction after the instruction that generated the exeption. */
-	addi	t0, s3, 4
+	addi	t0, a4, 4
 	store_x	t0, PORT_CONTEXT_mepcOFFSET(sp) 
 	/* Store the value of sp when the interrupt occur */
 	addi 	t0, sp, portasmREGISTER_CONTEXT_WORDSIZE
@@ -423,22 +417,21 @@ ecall_yield:
 	portasmSAVE_ADDITIONAL_REGISTERS
 
 	/* Load pxCurrentTCB and update first TCB member(pxTopOfStack) with sp. */
-	load_x  s9, pxCurrentTCB
-	store_x  sp, 0( s9 )
+	load_x  s0, pxCurrentTCB
+	store_x  sp, 0( s0 )
 
-	/* Save sp into s11 */
-	mv  s11, sp
+	/* Save sp into s1 */
+	mv  s1, sp
 	load_x sp, xISRStackTop			/* Switch to ISR stack before function call. */
 
 	j	switch_context
 
 handle_interrupt:
 	portSAVE_BaseReg
-	/* s2 = mcause
-	 * s3 = mepc
-	 * s4 = mstatus
-	 * s9 will be use for pxCurrentTCB
-	 * s11 will be use to save sp
+	/* a4 = mepc
+	 * a5 = mstatus
+	 * s0 will be use for pxCurrentTCB
+	 * s1 will be use to save sp
 	 */
 
 	/* Store the value of sp when the interrupt occur */
@@ -449,11 +442,11 @@ handle_interrupt:
 	portasmSAVE_ADDITIONAL_REGISTERS
 
 	/* Load pxCurrentTCB and update first TCB member(pxTopOfStack) with sp. */
-	load_x  s9, pxCurrentTCB
-	store_x  sp, 0( s9 )
+	load_x  s0, pxCurrentTCB
+	store_x  sp, 0( s0 )
 
-	/* Save sp into s11 */
-	mv  s11, sp
+	/* Save sp into s1 */
+	mv  s1, sp
 	load_x sp, xISRStackTop			/* Switch to ISR stack before function call. */
 
 #if( configUSE_SEGGER_SYSTEMVIEW == 1 )
@@ -465,30 +458,33 @@ handle_interrupt:
 
 	slli t0, t0, __riscv_xlen - 1   /* LSB is already set, shift into MSB.  Shift 31 on 32-bit or 63 on 64-bit cores. */
 	addi t1, t0, 7					/* 0x8000[]0007 == machine timer interrupt. */
-	bne s2, t1, test_if_external_interrupt
+    csrr t2, mcause
+	bne t2, t1, test_if_external_interrupt
 
 	load_x t0, pullMachineTimerCompareRegister  /* Load address of compare register into t0. */
 	load_x t1, pullNextTime  		/* Load the address of ullNextTime into t1. */
 
 # if __riscv_xlen == 32 
 	/* Update the 64-bit mtimer compare match value in two 32-bit writes. */
-	lw 	t2, 0(t1)				/* Load the low word of ullNextTime into t2. */
-	lw 	t3, 4(t1)				/* Load the high word of ullNextTime into t3. */
+	lw 	a0, 0(t1)				/* Load the low word of ullNextTime into a0. */
+	lw 	a1, 4(t1)				/* Load the high word of ullNextTime into a1. */
+    li  t2, -1
 	sw 	t2, 0(t0)				/* Store low word of ullNextTime into compare register. */
-	sw 	t3, 4(t0)				/* Store high word of ullNextTime into compare register. */
+	sw 	a1, 4(t0)				/* Store high word of ullNextTime into compare register. */
+	sw 	a0, 0(t0)				/* Store low word of ullNextTime into compare register. */
 	lw 	t0, uxTimerIncrementsForOneTick	/* Load the value of ullTimerIncrementForOneTick into t0 (could this be optimized by storing in an array next to pullNextTime?). */
-	add t4, t0, t2				/* Add the low word of ullNextTime to the timer increments for one tick (assumes timer increment for one tick fits in 32-bits). */
-	sltu t5, t4, t2				/* See if the sum of low words overflowed (what about the zero case?). */
-	add t6, t3, t5				/* Add overflow to high word of ullNextTime. */
-	sw 	t4, 0(t1)				/* Store new low word of ullNextTime. */
-	sw 	t6, 4(t1)				/* Store new high word of ullNextTime. */
+	add a2, t0, a0				/* Add the low word of ullNextTime to the timer increments for one tick (assumes timer increment for one tick fits in 32-bits). */
+	sltu t2, a2, a0				/* See if the sum of low words overflowed (what about the zero case?). */
+	add a3, a1, t2				/* Add overflow to high word of ullNextTime. */
+	sw 	a2, 0(t1)				/* Store new low word of ullNextTime. */
+	sw 	a3, 4(t1)				/* Store new high word of ullNextTime. */
 # elif __riscv_xlen == 64 
 	/* Update the 64-bit mtimer compare match value. */
-	ld 	t2, 0(t1)			 	/* Load ullNextTime into t2. */
-	sd 	t2, 0(t0)				/* Store ullNextTime into compare register. */
+	ld 	a0, 0(t1)			 	/* Load ullNextTime into a0. */
+	sd 	a0, 0(t0)				/* Store ullNextTime into compare register. */
 	ld 	t0, uxTimerIncrementsForOneTick  /* Load the value of ullTimerIncrementForOneTick into t0 (could this be optimized by storing in an array next to pullNextTime?). */
-	add 	t4, t0, t2				/* Add ullNextTime to the timer increments for one tick. */
-	sd 	t4, 0(t1)				/* Store ullNextTime. */
+	add 	a2, t0, a0				/* Add ullNextTime to the timer increments for one tick. */
+	sd 	a2, 0(t1)				/* Store ullNextTime. */
 # endif /* __riscv_xlen == 64 */
 
 	jal xTaskIncrementTick
@@ -499,27 +495,28 @@ restore_before_exit:
 #if( configUSE_SEGGER_SYSTEMVIEW == 1 )
 	jal SYSVIEW_RECORD_EXIT_ISR
 #endif
-	mv  sp, s11
+	mv  sp, s1
 	j end_trap_handler
 
 test_if_external_interrupt:			/* If there is a CLINT and the mtimer interrupt is not pending then check to see if an external interrupt is pending. */
 	addi t1, t1, 4					/* 0x80000007 + 4 = 0x8000000b == Machine external interrupt. */
-	bne s2, t1, unrecoverable_error	/* Something as yet unhandled. */
+    csrr t2, mcause
+	bne t2, t1, unrecoverable_error	/* Something as yet unhandled. */
 	j unrecoverable_error
 
 #endif /* portasmHAS_CLINT */
 
 external_interrupt:
-	csrr 	a0, mhartid
-	mv		a1, s2
-	mv 		a2, s5
 	/* Switch to ISR stack before function call. */
 	load_x sp, xISRStackTop
 	jal portHANDLE_INTERRUPT
-	mv	sp, s11
+	mv	sp, s1
 	j end_trap_handler
 
 unrecoverable_error:
+    csrr 	t0, mcause              /* For viewing in the debugger only. */
+    csrr	t1, mepc                /* For viewing in the debugger only. */
+    csrr 	t2, mstatus
 	wfi
 	j unrecoverable_error
 
@@ -528,24 +525,25 @@ switch_context:
 #if( configUSE_SEGGER_SYSTEMVIEW == 1 )
 	jal SYSVIEW_RECORD_EXIT_ISR_TO_SCHEDULER
 #endif
-	load_x s9, pxCurrentTCB			/* Load pxCurrentTCB. */
-	load_x  sp, 0( s9 )				/* Read sp from first TCB member. */
+	load_x s0, pxCurrentTCB			/* Load pxCurrentTCB. */
+	load_x  sp, 0( s0 )				/* Read sp from first TCB member. */
 #if( portUSING_MPU_WRAPPERS == 1 )
 	lw a0, xPmpInfo
     li a1, 3
     sub a0, a0, a1
 # if __riscv_xlen == 32 
-    addi a1, s9, 4
+    addi a1, s0, 4
 # elif __riscv_xlen == 64 
-    addi a1, s9, 8
+    addi a1, s0, 8
 # endif /* __riscv_xlen == 64 */
     jal vPortPmpSwitch   
 	fence.i
 #endif
 
 end_trap_handler:	
+	load_x s0, pxCurrentTCB			/* Load pxCurrentTCB. */
 	load_x  t1, PORT_CONTEXT_xOFFSET(2)(sp)
-	store_x  t1, 0( s9 )				/* Write sp saved value to first TCB member. */
+	store_x  t1, 0( s0 )			/* Write sp saved value to first TCB member. */
 
 #if( portUSING_MPU_WRAPPERS == 1 )
 	load_x  t0, PORT_CONTEXT_mstatusOFFSET(sp)
@@ -719,10 +717,8 @@ pxPortInitialiseStack:
 	store_x  x0, PORT_CONTEXT_xOFFSET(30)(t2)
 	store_x  x0, PORT_CONTEXT_xOFFSET(31)(t2)
 
-	store_x x0, PORT_CONTEXT_mcauseOFFSET(t2)
 	store_x a1, PORT_CONTEXT_mepcOFFSET(t2)
 	store_x t0, PORT_CONTEXT_mstatusOFFSET(t2)
-	store_x x0, PORT_CONTEXT_rufOFFSET(t2)
 
 	/* The number of chip fpu additional registers. */
 	addi t0, x0, portasmFPU_CONTEXT_SIZE 
