@@ -190,46 +190,37 @@ definitions. */
 .macro portSAVE_BaseReg
 	/* Make room for the registers. */
 	addi	sp, sp, -portasmREGISTER_CONTEXT_WORDSIZE
-	/* x1(ra)			Return address */
-	store_x  x1,  PORT_CONTEXT_xOFFSET(1)(sp)
-	/* x2(sp) ***** Should be save ouside this macro */
-	/* x3(gp)			Global pointer */
-	store_x  x3,  PORT_CONTEXT_xOFFSET(3)(sp)
-	/* x4(tp)			Thread pointer */
-	store_x  x4,  PORT_CONTEXT_xOFFSET(4)(sp)
-	/* x5-7(t0-2)		Temporaries */
-	store_x  x5,  PORT_CONTEXT_xOFFSET(5)(sp)
-	store_x  x6,  PORT_CONTEXT_xOFFSET(6)(sp)
-	store_x  x7,  PORT_CONTEXT_xOFFSET(7)(sp)
-	/* x8(s0/fp)		Saved register/Frame pointer */
-	store_x  x8,  PORT_CONTEXT_xOFFSET(8)(sp)
-	/* x9(s1)			Saved register */
-	store_x  x9,  PORT_CONTEXT_xOFFSET(9)(sp)
-	/* x10-17(a0-7)		Function arguments */
-	store_x  x10, PORT_CONTEXT_xOFFSET(10)(sp)
-	store_x  x11, PORT_CONTEXT_xOFFSET(11)(sp)
-	store_x  x12, PORT_CONTEXT_xOFFSET(12)(sp)
-	store_x  x13, PORT_CONTEXT_xOFFSET(13)(sp)
-	store_x  x14, PORT_CONTEXT_xOFFSET(14)(sp)
-	store_x  x15, PORT_CONTEXT_xOFFSET(15)(sp)
-	store_x  x16, PORT_CONTEXT_xOFFSET(16)(sp)
-	store_x  x17, PORT_CONTEXT_xOFFSET(17)(sp)
-	/* x18-27(s2-11)		Saved registers */
-	store_x  x18, PORT_CONTEXT_xOFFSET(18)(sp)
-	store_x  x19, PORT_CONTEXT_xOFFSET(19)(sp)
-	store_x  x20, PORT_CONTEXT_xOFFSET(20)(sp)
-	store_x  x21, PORT_CONTEXT_xOFFSET(21)(sp)
-	store_x  x22, PORT_CONTEXT_xOFFSET(22)(sp)
-	store_x  x23, PORT_CONTEXT_xOFFSET(23)(sp)
-	store_x  x24, PORT_CONTEXT_xOFFSET(24)(sp)
-	store_x  x25, PORT_CONTEXT_xOFFSET(25)(sp)
-	store_x  x26, PORT_CONTEXT_xOFFSET(26)(sp)
-	store_x  x27, PORT_CONTEXT_xOFFSET(27)(sp)
-	/* x28-31(t3-6)		Temporaries */
-	store_x  x28, PORT_CONTEXT_xOFFSET(28)(sp)
-	store_x  x29, PORT_CONTEXT_xOFFSET(29)(sp)
-	store_x  x30, PORT_CONTEXT_xOFFSET(30)(sp)
-	store_x  x31, PORT_CONTEXT_xOFFSET(31)(sp)
+    store_x  x1,  PORT_CONTEXT_xOFFSET(1)(sp)		/* x1(ra)		Return address */
+													/* x2(sp) ***** Should be save ouside this macro */
+    store_x  x3,  PORT_CONTEXT_xOFFSET(3)(sp)		/* x3(gp)		Global pointer */
+    store_x  x4,  PORT_CONTEXT_xOFFSET(4)(sp)		/* x4(tp)		Thread pointer */
+    store_x  x5,  PORT_CONTEXT_xOFFSET(5)(sp)		/* x5(t0)		Temporary register */
+    store_x  x6,  PORT_CONTEXT_xOFFSET(6)(sp)		/* x6(t1)		Temporary register*/
+    store_x  x7,  PORT_CONTEXT_xOFFSET(7)(sp)		/* x7(t2)		Temporary register */
+    store_x  x8,  PORT_CONTEXT_xOFFSET(8)(sp)		/* x8(s0/fp)	Saved register/Frame pointer */
+    store_x  x9,  PORT_CONTEXT_xOFFSET(9)(sp)		/* x9(s1)		Saved register */
+    store_x  x10, PORT_CONTEXT_xOFFSET(10)(sp)		/* x10(a0)		Function argument */
+    store_x  x11, PORT_CONTEXT_xOFFSET(11)(sp)		/* x11(a1)		Function argument */
+    store_x  x12, PORT_CONTEXT_xOFFSET(12)(sp)		/* x12(a2)		Function argument */
+    store_x  x13, PORT_CONTEXT_xOFFSET(13)(sp)		/* x13(a3)		Function argument */
+    store_x  x14, PORT_CONTEXT_xOFFSET(14)(sp)		/* x14(a4)		Function argument */
+    store_x  x15, PORT_CONTEXT_xOFFSET(15)(sp)		/* x15(a5)		Function argument */
+    store_x  x16, PORT_CONTEXT_xOFFSET(16)(sp)		/* x16(a6)		Function arguments */
+    store_x  x17, PORT_CONTEXT_xOFFSET(17)(sp)		/* x17(a7)		Function arguments */
+    store_x  x18, PORT_CONTEXT_xOFFSET(18)(sp)		/* x18(s2)		Saved register */
+    store_x  x19, PORT_CONTEXT_xOFFSET(19)(sp)		/* x19(s3)		Saved register */
+    store_x  x20, PORT_CONTEXT_xOFFSET(20)(sp)		/* x20(s4)		Saved register */
+    store_x  x21, PORT_CONTEXT_xOFFSET(21)(sp)		/* x21(s5)		Saved register */
+    store_x  x22, PORT_CONTEXT_xOFFSET(22)(sp)		/* x22(s6)		Saved register */
+    store_x  x23, PORT_CONTEXT_xOFFSET(23)(sp)		/* x23(s7)		Saved register */
+    store_x  x24, PORT_CONTEXT_xOFFSET(24)(sp)		/* x24(s8)		Saved register */
+    store_x  x25, PORT_CONTEXT_xOFFSET(25)(sp)		/* x25(s9)		Saved register */
+    store_x  x26, PORT_CONTEXT_xOFFSET(26)(sp)		/* x26(s10)		Saved register */
+    store_x  x27, PORT_CONTEXT_xOFFSET(27)(sp)		/* x27(s11)		Saved register */
+    store_x  x28, PORT_CONTEXT_xOFFSET(28)(sp)		/* x28(t3)		Temporary register */
+    store_x  x29, PORT_CONTEXT_xOFFSET(29)(sp)		/* x29(t4)		Temporary register */
+    store_x  x30, PORT_CONTEXT_xOFFSET(30)(sp)		/* x30(t5)		Temporary register */
+    store_x  x31, PORT_CONTEXT_xOFFSET(31)(sp)		/* x31(t6)		Temporary register */
 
 	/* Save mcause, mepc & mstatus state */
     csrr s2, mcause
@@ -248,46 +239,37 @@ definitions. */
 	csrw	mepc, s3
 	csrw	mstatus, s4
 
-	/* x1(ra)			Return address */
-	load_x  x1,  PORT_CONTEXT_xOFFSET(1)(sp)
-	/* x2(sp) ***** Should be restore outside this macro */
-	/* x3(gp)			Global pointer */
-	load_x  x3,  PORT_CONTEXT_xOFFSET(3)(sp)
-	/* x4(tp)			Thread pointer */
-	load_x  x4,  PORT_CONTEXT_xOFFSET(4)(sp)
-	/* x5-7(t0-2)		Temporaries */
-	load_x  x5,  PORT_CONTEXT_xOFFSET(5)(sp)
-	load_x  x6,  PORT_CONTEXT_xOFFSET(6)(sp)
-	load_x  x7,  PORT_CONTEXT_xOFFSET(7)(sp)
-	/* x8(s0/fp)		Saved register/Frame pointer */
-	load_x  x8,  PORT_CONTEXT_xOFFSET(8)(sp)
-	/* x9(s1)			Saved register */
-	load_x  x9,  PORT_CONTEXT_xOFFSET(9)(sp)
-	/* x10-17(a0-7)		Function arguments */
-	load_x  x10, PORT_CONTEXT_xOFFSET(10)(sp)
-	load_x  x11, PORT_CONTEXT_xOFFSET(11)(sp)
-	load_x  x12, PORT_CONTEXT_xOFFSET(12)(sp)
-	load_x  x13, PORT_CONTEXT_xOFFSET(13)(sp)
-	load_x  x14, PORT_CONTEXT_xOFFSET(14)(sp)
-	load_x  x15, PORT_CONTEXT_xOFFSET(15)(sp)
-	load_x  x16, PORT_CONTEXT_xOFFSET(16)(sp)
-	load_x  x17, PORT_CONTEXT_xOFFSET(17)(sp)
-	/* x18-27(s2-11)		Saved registers */
-	load_x  x18, PORT_CONTEXT_xOFFSET(18)(sp)
-	load_x  x19, PORT_CONTEXT_xOFFSET(19)(sp)
-	load_x  x20, PORT_CONTEXT_xOFFSET(20)(sp)
-	load_x  x21, PORT_CONTEXT_xOFFSET(21)(sp)
-	load_x  x22, PORT_CONTEXT_xOFFSET(22)(sp)
-	load_x  x23, PORT_CONTEXT_xOFFSET(23)(sp)
-	load_x  x24, PORT_CONTEXT_xOFFSET(24)(sp)
-	load_x  x25, PORT_CONTEXT_xOFFSET(25)(sp)
-	load_x  x26, PORT_CONTEXT_xOFFSET(26)(sp)
-	load_x  x27, PORT_CONTEXT_xOFFSET(27)(sp)
-	/* x28-31(t3-6)		Temporaries */
-	load_x  x28, PORT_CONTEXT_xOFFSET(28)(sp)
-	load_x  x29, PORT_CONTEXT_xOFFSET(29)(sp)
-	load_x  x30, PORT_CONTEXT_xOFFSET(30)(sp)
-	load_x  x31, PORT_CONTEXT_xOFFSET(31)(sp)
+    load_x  x1,  PORT_CONTEXT_xOFFSET(1)(sp)		/* x1(ra)		Return address */
+													/* x2(sp) ***** Should be save ouside this macro */
+    load_x  x3,  PORT_CONTEXT_xOFFSET(3)(sp)		/* x3(gp)		Global pointer */
+    load_x  x4,  PORT_CONTEXT_xOFFSET(4)(sp)		/* x4(tp)		Thread pointer */
+    load_x  x5,  PORT_CONTEXT_xOFFSET(5)(sp)		/* x5(t0)		Temporary register */
+    load_x  x6,  PORT_CONTEXT_xOFFSET(6)(sp)		/* x6(t1)		Temporary register*/
+    load_x  x7,  PORT_CONTEXT_xOFFSET(7)(sp)		/* x7(t2)		Temporary register */
+    load_x  x8,  PORT_CONTEXT_xOFFSET(8)(sp)		/* x8(s0/fp)	Saved register/Frame pointer */
+    load_x  x9,  PORT_CONTEXT_xOFFSET(9)(sp)		/* x9(s1)		Saved register */
+    load_x  x10, PORT_CONTEXT_xOFFSET(10)(sp)		/* x10(a0)		Function argument */
+    load_x  x11, PORT_CONTEXT_xOFFSET(11)(sp)		/* x11(a1)		Function argument */
+    load_x  x12, PORT_CONTEXT_xOFFSET(12)(sp)		/* x12(a2)		Function argument */
+    load_x  x13, PORT_CONTEXT_xOFFSET(13)(sp)		/* x13(a3)		Function argument */
+    load_x  x14, PORT_CONTEXT_xOFFSET(14)(sp)		/* x14(a4)		Function argument */
+    load_x  x15, PORT_CONTEXT_xOFFSET(15)(sp)		/* x15(a5)		Function argument */
+    load_x  x16, PORT_CONTEXT_xOFFSET(16)(sp)		/* x16(a6)		Function arguments */
+    load_x  x17, PORT_CONTEXT_xOFFSET(17)(sp)		/* x17(a7)		Function arguments */
+    load_x  x18, PORT_CONTEXT_xOFFSET(18)(sp)		/* x18(s2)		Saved register */
+    load_x  x19, PORT_CONTEXT_xOFFSET(19)(sp)		/* x19(s3)		Saved register */
+    load_x  x20, PORT_CONTEXT_xOFFSET(20)(sp)		/* x20(s4)		Saved register */
+    load_x  x21, PORT_CONTEXT_xOFFSET(21)(sp)		/* x21(s5)		Saved register */
+    load_x  x22, PORT_CONTEXT_xOFFSET(22)(sp)		/* x22(s6)		Saved register */
+    load_x  x23, PORT_CONTEXT_xOFFSET(23)(sp)		/* x23(s7)		Saved register */
+    load_x  x24, PORT_CONTEXT_xOFFSET(24)(sp)		/* x24(s8)		Saved register */
+    load_x  x25, PORT_CONTEXT_xOFFSET(25)(sp)		/* x25(s9)		Saved register */
+    load_x  x26, PORT_CONTEXT_xOFFSET(26)(sp)		/* x26(s10)		Saved register */
+    load_x  x27, PORT_CONTEXT_xOFFSET(27)(sp)		/* x27(s11)		Saved register */
+    load_x  x28, PORT_CONTEXT_xOFFSET(28)(sp)		/* x28(t3)		Temporary register */
+    load_x  x29, PORT_CONTEXT_xOFFSET(29)(sp)		/* x29(t4)		Temporary register */
+    load_x  x30, PORT_CONTEXT_xOFFSET(30)(sp)		/* x30(t5)		Temporary register */
+    load_x  x31, PORT_CONTEXT_xOFFSET(31)(sp)		/* x31(t6)		Temporary register */
 	.endm
 /*************************************************************/
 
@@ -633,48 +615,14 @@ xPortStartFirstTask:
 	load_x  t1,  PORT_CONTEXT_xOFFSET(2)(sp)
 	store_x  t1, 0( t2 )				/* Write sp saved value to first TCB member. */
 
-	load_x t0, pullMachineTimerRegister  /* Load address of compare register into t0. */
-	load_x t1, pullNextTime  		/* Load the address of ullNextTime into t1. */
-
-# if __riscv_xlen == 32 
-		/* Read the 64-bit mtimer match value in two 32-bit writes. */
-		lw t3, 4(t0)				/* Load mtimer register high address. */
-first_task_timer_loop:
-		lw t2, 0(t0)				/* Load mtimer register low address. */
-		mv t4, t3
-		lw t3, 4(t0)				/* Load mtimer register high address. */
-		bne t4, t3, first_task_timer_loop
-
-		lw t0, uxTimerIncrementsForOneTick	/* Load the value of ullTimerIncrementForOneTick into t0 (could this be optimized by storing in an array next to pullNextTime?). */
-		add t4, t0, t2				/* Add the low word of mtimer for one tick (assumes timer increment for one tick fits in 32-bits). */
-		sltu t5, t4, t2				/* See if the sum of low words overflowed (what about the zero case?). */
-		add t6, t3, t5				/* Add overflow to high word of mtimer. */
-	
-		load_x t2, pullMachineTimerCompareRegister  /* Load address of compare register into t0. */
-		sw t4, 0(t2)				/* Store new low word of ullNextTime. */
-		sw t6, 4(t2)				/* Store new high word of ullNextTime. */
-
-		add t2, t0, t4				/* Add the low word of ullNextTime to the timer increments for one tick (assumes timer increment for one tick fits in 32-bits). */
-		sltu t5, t2, t4				/* See if the sum of low words overflowed (what about the zero case?). */
-		add t3, t6, t5				/* Add overflow to high word of ullNextTime. */
-		sw t2, 0(t1)				/* Store new low word of ullNextTime. */
-		sw t3, 4(t1)				/* Store new high word of ullNextTime. */
-
-# elif __riscv_xlen == 64 
-		/* Read the 64-bit mtimer */
-		ld t2, 0(t0)			 	/* Load mtimer register into t2. */
-		ld t3, uxTimerIncrementsForOneTick  /* Load the value of ullTimerIncrementForOneTick into t0 (could this be optimized by storing in an array next to pullNextTime?). */
-		add t4, t3, t2				/* Add ullNextTime to the timer increments for one tick. */
-		load_x t2, pullMachineTimerCompareRegister  /* Load address of compare register into t0. */
-		sd t4, 0(t2)				/* Store ullNextTime into compare register. */
-		/* Update the 64-bit mtimer compare match value. */
-		add t4, t3, t4				/* Add ullNextTime to the timer increments for one tick. */
-		sd t4, 0(t1)				/* Store ullNextTime. */
-# endif /* __riscv_xlen == 64 */
-
 	/* enable interrupt */
-	li t0, 0x880
-	csrs mie, t0
+    #if( portasmHAS_CLINT != 0 )
+	    li t0, 0x880
+	    csrs mie, t0
+    #else
+	    li t0, 0x800
+	    csrs mie, t0
+    #endif /* ( portasmHAS_CLINT != 0 ) */
 
 	portasmRESTORE_ADDITIONAL_REGISTERS
 	portRESTORE_BaseReg
@@ -796,9 +744,6 @@ chip_specific_stack_frame:				/* First add any chip specific registers to the st
 1:
 	mv a0, t2
 	ret
-//#if( portUSING_MPU_WRAPPERS == 1 )
-//.section .text
-//#endif
 /*-----------------------------------------------------------*/
 
 /**
