@@ -64,7 +64,7 @@
 
 #ifndef __riscv_xlen
 #error Missing __riscv_xlen
-#endif
+#endif /* __riscv_xlen */
 
 #if __riscv_xlen == 64
 	#define store_x sd
@@ -74,7 +74,8 @@
 	#define load_x lw
 #else
 	#error __riscv_xlen with an unsupported value
-#endif
+#endif /* __riscv_xlen == ?? */
+
 #include "FreeRTOSConfig.h"
 
 #include "freertos_risc_v_chip_specific_extensions.h"
@@ -92,10 +93,17 @@
 #define portasmFPU_CONTEXT_SIZE	  0
 
 #define PORT_CONTEXT_xIDX(X)		(X) /* index into "raw" for register x? */
+#ifdef __riscv_32e
+#define PORT_CONTEXT_mepcIDX		(16)
+#define PORT_CONTEXT_mstatusIDX		(17)
+#define PORT_CONTEXT_fpuIDX(X)		(20 + X)
+#define PORT_CONTEXT_lastIDX		(20 + portasmFPU_CONTEXT_SIZE + portasmADDITIONAL_CONTEXT_SIZE)
+#else
 #define PORT_CONTEXT_mepcIDX		(32)
 #define PORT_CONTEXT_mstatusIDX		(33)
 #define PORT_CONTEXT_fpuIDX(X)		(36 + X)
 #define PORT_CONTEXT_lastIDX		(36 + portasmFPU_CONTEXT_SIZE + portasmADDITIONAL_CONTEXT_SIZE)
+#endif /* __riscv_32e */
 
 /* used in assembler, as byte offsets from the start of the context */
 #define PORT_CONTEXT_xOFFSET( X )   (PORT_CONTEXT_xIDX(X)    * portWORD_SIZE)
@@ -202,6 +210,7 @@ definitions. */
     store_x  x13, PORT_CONTEXT_xOFFSET(13)(sp)		/* x13(a3)		Function argument */
     store_x  x14, PORT_CONTEXT_xOFFSET(14)(sp)		/* x14(a4)		Function argument */
     store_x  x15, PORT_CONTEXT_xOFFSET(15)(sp)		/* x15(a5)		Function argument */
+#ifndef __riscv_32e
     store_x  x16, PORT_CONTEXT_xOFFSET(16)(sp)		/* x16(a6)		Function arguments */
     store_x  x17, PORT_CONTEXT_xOFFSET(17)(sp)		/* x17(a7)		Function arguments */
     store_x  x18, PORT_CONTEXT_xOFFSET(18)(sp)		/* x18(s2)		Saved register */
@@ -218,7 +227,7 @@ definitions. */
     store_x  x29, PORT_CONTEXT_xOFFSET(29)(sp)		/* x29(t4)		Temporary register */
     store_x  x30, PORT_CONTEXT_xOFFSET(30)(sp)		/* x30(t5)		Temporary register */
     store_x  x31, PORT_CONTEXT_xOFFSET(31)(sp)		/* x31(t6)		Temporary register */
-
+#endif /* __riscv_32e */
 	/* Save mcause, mepc & mstatus state */
 	csrr a4, mepc
 	csrr a5, mstatus		/* Required for MPIE bit. */
@@ -249,6 +258,7 @@ definitions. */
     load_x  x13, PORT_CONTEXT_xOFFSET(13)(sp)		/* x13(a3)		Function argument */
     load_x  x14, PORT_CONTEXT_xOFFSET(14)(sp)		/* x14(a4)		Function argument */
     load_x  x15, PORT_CONTEXT_xOFFSET(15)(sp)		/* x15(a5)		Function argument */
+#ifndef __riscv_32e
     load_x  x16, PORT_CONTEXT_xOFFSET(16)(sp)		/* x16(a6)		Function arguments */
     load_x  x17, PORT_CONTEXT_xOFFSET(17)(sp)		/* x17(a7)		Function arguments */
     load_x  x18, PORT_CONTEXT_xOFFSET(18)(sp)		/* x18(s2)		Saved register */
@@ -265,6 +275,7 @@ definitions. */
     load_x  x29, PORT_CONTEXT_xOFFSET(29)(sp)		/* x29(t4)		Temporary register */
     load_x  x30, PORT_CONTEXT_xOFFSET(30)(sp)		/* x30(t5)		Temporary register */
     load_x  x31, PORT_CONTEXT_xOFFSET(31)(sp)		/* x31(t6)		Temporary register */
+#endif /* __riscv_32e */
 	.endm
 /*************************************************************/
 
@@ -478,7 +489,8 @@ handle_interrupt:
 	add a3, a1, t2				/* Add overflow to high word of ullNextTime. */
 	sw 	a2, 0(t1)				/* Store new low word of ullNextTime. */
 	sw 	a3, 4(t1)				/* Store new high word of ullNextTime. */
-# elif __riscv_xlen == 64 
+# endif /* __riscv_xlen == 32 */
+# if __riscv_xlen == 64 
 	/* Update the 64-bit mtimer compare match value. */
 	ld 	a0, 0(t1)			 	/* Load ullNextTime into a0. */
 	sd 	a0, 0(t0)				/* Store ullNextTime into compare register. */
@@ -698,6 +710,7 @@ pxPortInitialiseStack:
 	store_x  x0, PORT_CONTEXT_xOFFSET(13)(t2)
 	store_x  x0, PORT_CONTEXT_xOFFSET(14)(t2)
 	store_x  x0, PORT_CONTEXT_xOFFSET(15)(t2)
+#ifndef __riscv_32e
 	store_x  x0, PORT_CONTEXT_xOFFSET(16)(t2)
 	store_x  x0, PORT_CONTEXT_xOFFSET(17)(t2)
 	/* x18-27(s2-11)		Saved registers */
@@ -716,6 +729,7 @@ pxPortInitialiseStack:
 	store_x  x0, PORT_CONTEXT_xOFFSET(29)(t2)
 	store_x  x0, PORT_CONTEXT_xOFFSET(30)(t2)
 	store_x  x0, PORT_CONTEXT_xOFFSET(31)(t2)
+#endif /* __riscv_32e */
 
 	store_x a1, PORT_CONTEXT_mepcOFFSET(t2)
 	store_x t0, PORT_CONTEXT_mstatusOFFSET(t2)
