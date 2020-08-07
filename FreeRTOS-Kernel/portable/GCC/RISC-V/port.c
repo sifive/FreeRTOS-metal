@@ -44,6 +44,13 @@
 
 PRIVILEGED_DATA StackType_t xISRStackTop;
 
+/*
+ * Setup the timer to generate the tick interrupts.  The implementation in this
+ * file is weak to allow application writers to change the timer used to
+ * generate the tick interrupt.
+ */
+void vPortSetupTimerInterrupt( void ) __attribute__( ( weak ) );
+
 /*-----------------------------------------------------------*/
 
 /* Used to program the machine timer compare register. */
@@ -521,6 +528,44 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
 #endif
 /*-----------------------------------------------------------*/
 
+#if( configCLINT_BASE_ADDRESS != 0 )
+
+	void vPortSetupTimerInterrupt( void )
+	{
+        #if( __riscv_xlen == 32 )
+			uint32_t ulCurrentTimeHigh, ulCurrentTimeLow;
+			volatile uint32_t * const pulTimeHigh = ( volatile uint32_t * const ) ( configCLINT_BASE_ADDRESS + 0xBFFC );
+			volatile uint32_t * const pulTimeLow = ( volatile uint32_t * const ) ( configCLINT_BASE_ADDRESS + 0xBFF8 );
+        #endif /* __riscv_xlen == 32 */
+        #if( __riscv_xlen == 64 )
+			volatile uint64_t * const pulTime = ( volatile uint64_t * const ) ( configCLINT_BASE_ADDRESS + 0xBFF8 );
+        #endif /* __riscv_xlen == 64 */
+
+        #if( __riscv_xlen == 32 )
+			do
+			{
+				ulCurrentTimeHigh = *pulTimeHigh;
+				ulCurrentTimeLow = *pulTimeLow;
+			} while( ulCurrentTimeHigh != *pulTimeHigh );
+
+			ullNextTime = ( uint64_t ) ulCurrentTimeHigh;
+			ullNextTime <<= 32ULL;
+			ullNextTime |= ( uint64_t ) ulCurrentTimeLow;
+        #endif /* __riscv_xlen == 32 */
+        #if( __riscv_xlen == 64 )
+             ullNextTime = *pulTime;
+        #endif /* __riscv_xlen == 64 */
+
+		ullNextTime += ( uint64_t ) uxTimerIncrementsForOneTick;
+		*pullMachineTimerCompareRegister = ullNextTime;
+
+		/* Prepare the time to use after the next tick interrupt. */
+		ullNextTime += ( uint64_t ) uxTimerIncrementsForOneTick;
+	}
+
+#endif /* ( configCLINT_BASE_ADDRESS != 0 ) */
+/*-----------------------------------------------------------*/
+
 /**
  * @brief Start scheduler
  * 
@@ -544,6 +589,11 @@ BaseType_t xPortStartScheduler( void ) PRIVILEGED_FUNCTION
 		configASSERT( ( mtvec & 0x03UL ) == 0 );
 	}
 	#endif /* configASSERT_DEFINED */
+
+	/* If there is a CLINT then it is ok to use the default implementation
+	in this file, otherwise vPortSetupTimerInterrupt() must be implemented to
+	configure whichever clock is to be used to generate the tick interrupt. */
+	vPortSetupTimerInterrupt();
 
 	xPortStartFirstTask();
 
