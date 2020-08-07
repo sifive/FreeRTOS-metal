@@ -258,6 +258,7 @@ BaseType_t xIsPrivileged( void );
 #define portRESET_PRIVILEGE()		vResetPrivilege()
 
 #endif /* portUSING_MPU_WRAPPERS */
+/*-----------------------------------------------------------*/
 
 /* Architecture specifics. */
 /* We use decreasing stack  */
@@ -265,13 +266,9 @@ BaseType_t xIsPrivileged( void );
 /* Number of tick per milliseconds */
 #define portTICK_PERIOD_MS			( ( TickType_t ) 1000 / configTICK_RATE_HZ )
 
-#ifdef __riscv64
-	#error This is the RV32 port that has not yet been adapted for 64.
-	#define portBYTE_ALIGNMENT			16
-#else
-	#define portBYTE_ALIGNMENT 			16
-#endif
+#define portBYTE_ALIGNMENT 			16
 /*-----------------------------------------------------------*/
+
 void vPortFreeRTOSInit( StackType_t xTopOfStack );
 
 extern void vPortFreeRTOSInit( StackType_t );

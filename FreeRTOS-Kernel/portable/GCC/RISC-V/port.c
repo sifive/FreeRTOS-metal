@@ -51,6 +51,13 @@ PRIVILEGED_DATA StackType_t xISRStackTop;
  */
 void vPortSetupTimerInterrupt( void ) __attribute__( ( weak ) );
 
+#if( configENABLE_FPU == 1 )
+	/*
+	 * Setup the Floating Point Unit (FPU).
+	 */
+	static void prvSetupFPU( void ) PRIVILEGED_FUNCTION;
+#endif /* configENABLE_FPU */
+
 /*-----------------------------------------------------------*/
 
 /* Used to program the machine timer compare register. */
@@ -831,3 +838,23 @@ void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xPMPSettings,
 /*-----------------------------------------------------------*/
 
 #endif
+
+#if( configENABLE_FPU == 1 )
+	static void prvSetupFPU( void ) /* PRIVILEGED_FUNCTION */
+	{
+		__asm__ __volatile__ (
+			"csrr t0, misa \n"			/* Get misa */
+			"li   t1, 0x10028 \n"		/* 0x10028 = Q,F,D Quad, Single or Double precission floating point */
+			"and  t0, t0, t1 \n"
+			"beqz t0, 1f \n"			/* check if Q,F or D is present into misa */
+			"csrr t0, mstatus \n"		/* Floating point unit is present so need to put it into initial state */
+			"lui  t1, 0x1 \n"			/* t1 =  0x1 << 12 */
+			"or   t0, t0, t1 \n"
+			"csrw mstatus, t0 \n"		/* Set FS to initial state */
+			"csrwi fcsr, 0 \n"			/* Clear Floating-point Control and Status Register */
+			"1: \n"
+			:::
+		);
+	}
+#endif /* configENABLE_FPU */
+/*-----------------------------------------------------------*/
