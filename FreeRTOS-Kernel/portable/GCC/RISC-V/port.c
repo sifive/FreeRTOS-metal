@@ -55,7 +55,7 @@ void vPortSetupTimerInterrupt( void ) __attribute__( ( weak ) );
 	/*
 	 * Setup the Floating Point Unit (FPU).
 	 */
-	static void prvSetupFPU( void ) PRIVILEGED_FUNCTION;
+	void prvSetupFPU( void ) PRIVILEGED_FUNCTION;
 #endif /* configENABLE_FPU */
 
 /*-----------------------------------------------------------*/
@@ -840,7 +840,7 @@ void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xPMPSettings,
 #endif
 
 #if( configENABLE_FPU == 1 )
-	static void prvSetupFPU( void ) /* PRIVILEGED_FUNCTION */
+	void prvSetupFPU( void ) /* PRIVILEGED_FUNCTION */
 	{
 		__asm__ __volatile__ (
 			"csrr t0, misa \n"			/* Get misa */
