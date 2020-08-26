@@ -1,0 +1,7 @@
+[
+    {
+        "commit": "1d8df4752e3ed9d84364254acff95c4971eba77c",
+        "name": "FreeRTOS-Kernel",
+        "source": "https://github.com/sifive/FreeRTOS-Kernel.git"
+    }
+]
