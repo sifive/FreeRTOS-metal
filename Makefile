@@ -49,6 +49,9 @@ else
 	endif
 endif
 
+override ASFLAGS += -DportHANDLE_INTERRUPT=FreedomMetal_InterruptHandler
+override ASFLAGS += -DportHANDLE_EXCEPTION=FreedomMetal_ExceptionHandler
+
 ################################################################################
 #                               MACROS
 ################################################################################
