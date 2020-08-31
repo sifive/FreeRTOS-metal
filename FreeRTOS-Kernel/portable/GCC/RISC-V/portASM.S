@@ -166,18 +166,6 @@ definitions. */
     .extern privilege_status
 #endif
 
-#if( configUSE_SEGGER_SYSTEMVIEW == 1 )
-# ifndef SYSVIEW_RECORD_ENTER_ISR
-	#error SYSVIEW_RECORD_ENTER_ISR must be defined to the function to be called when you enter into ISR. In basic usage it is define to SEGGER_SYSVIEW_RecordEnterISR 
-# endif
-# ifndef SYSVIEW_RECORD_EXIT_ISR
-	#error SYSVIEW_RECORD_EXIT_ISR must be defined to the function to be called when you enter into ISR. In basic usage it is define to SEGGER_SYSVIEW_RecordExitISR 
-# endif
-# ifndef SYSVIEW_RECORD_EXIT_ISR_TO_SCHEDULER
-	#error SYSVIEW_RECORD_EXIT_ISR_TO_SCHEDULER must be defined to the function to be called when you enter into ISR. In basic usage it is define to SEGGER_SYSVIEW_RecordExitISRToScheduler 
-# endif
-#endif
-
 /*------------------------------------------------------------------*/
 /*
  * Register		ABI Name	Description						Saver
@@ -593,10 +581,6 @@ handle_interrupt:
 	mv  s1, sp
 	load_x sp, xISRStackTop			/* Switch to ISR stack before function call. */
 
-#if( configUSE_SEGGER_SYSTEMVIEW == 1 )
-	jal SYSVIEW_RECORD_ENTER_ISR
-#endif
-
 #if( portasmHAS_CLINT != 0 )
 	addi t0, x0, 1
 
@@ -637,9 +621,6 @@ handle_interrupt:
 	j switch_context
 
 restore_before_exit:
-#if( configUSE_SEGGER_SYSTEMVIEW == 1 )
-	jal SYSVIEW_RECORD_EXIT_ISR
-#endif
 	mv  sp, s1
 	j end_trap_handler
 
@@ -667,9 +648,6 @@ unrecoverable_error:
 
 switch_context:
 	jal	vTaskSwitchContext
-#if( configUSE_SEGGER_SYSTEMVIEW == 1 )
-	jal SYSVIEW_RECORD_EXIT_ISR_TO_SCHEDULER
-#endif
 	load_x s0, pxCurrentTCB			/* Load pxCurrentTCB. */
 	load_x  sp, 0( s0 )				/* Read sp from first TCB member. */
 #if( portUSING_MPU_WRAPPERS == 1 )

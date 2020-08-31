@@ -222,20 +222,6 @@ count overflows. */
 	tracePOST_MOVED_TASK_TO_READY_STATE( pxTCB )
 /*-----------------------------------------------------------*/
 
-#if( configUSE_SEGGER_SYSTEMVIEW == 1 )
-/*
- * Place the task represented by pxTCB which has been in a ready list before
- * into the appropriate ready list for the task.
- * It is inserted at the end of the list.
- */
-#define prvReaddTaskToReadyList( pxTCB )															\
-	traceREADDED_TASK_TO_READY_STATE( pxTCB );														\
-	taskRECORD_READY_PRIORITY( ( pxTCB )->uxPriority );												\
-	vListInsertEnd( &( pxReadyTasksLists[ ( pxTCB )->uxPriority ] ), &( ( pxTCB )->xStateListItem ) ); \
-	tracePOST_MOVED_TASK_TO_READY_STATE( pxTCB )
- /*-----------------------------------------------------------*/
-#endif
-
 /*
  * Several functions take an TaskHandle_t parameter that can optionally be NULL,
  * where NULL is used to indicate that the handle of the currently executing
@@ -1170,11 +1156,7 @@ static void prvAddNewTaskToReadyList( TCB_t *pxNewTCB )
 		#endif /* configUSE_TRACE_FACILITY */
 		traceTASK_CREATE( pxNewTCB );
 
-#if( configUSE_SEGGER_SYSTEMVIEW == 1 )
-		prvReaddTaskToReadyList( pxNewTCB );
-#else
 		prvAddTaskToReadyList( pxNewTCB );
-#endif
 
 		portSETUP_TCB( pxNewTCB );
 	}
@@ -1774,9 +1756,6 @@ static void prvAddNewTaskToReadyList( TCB_t *pxNewTCB )
 				mtCOVERAGE_TEST_MARKER();
 			}
 
-#if( configUSE_SEGGER_SYSTEMVIEW == 1 )
-			traceMOVED_TASK_TO_SUSPENDED_LIST(pxTCB);
-#endif
 			vListInsertEnd( &xSuspendedTaskList, &( pxTCB->xStateListItem ) );
 
 			#if( configUSE_TASK_NOTIFICATIONS == 1 )
@@ -4097,11 +4076,7 @@ TCB_t *pxTCB;
 
 					/* Inherit the priority before being moved into the new list. */
 					pxMutexHolderTCB->uxPriority = pxCurrentTCB->uxPriority;
-#if( configUSE_SEGGER_SYSTEMVIEW == 1 )
-					prvReaddTaskToReadyList( pxMutexHolderTCB );
-#else
 					prvAddTaskToReadyList( pxMutexHolderTCB );
-#endif
 				}
 				else
 				{
@@ -4191,11 +4166,7 @@ TCB_t *pxTCB;
 					any other purpose if this task is running, and it must be
 					running to give back the mutex. */
 					listSET_LIST_ITEM_VALUE( &( pxTCB->xEventListItem ), ( TickType_t ) configMAX_PRIORITIES - ( TickType_t ) pxTCB->uxPriority ); /*lint !e961 MISRA exception as the casts are only redundant for some ports. */
-#if( configUSE_SEGGER_SYSTEMVIEW == 1 )
-					prvReaddTaskToReadyList( pxTCB );
-#else
 					prvAddTaskToReadyList( pxTCB );
-#endif
 
 					/* Return true to indicate that a context switch is required.
 					This is only actually required in the corner case whereby
@@ -5232,9 +5203,6 @@ const TickType_t xConstTickCount = xTickCount;
 			/* Add the task to the suspended task list instead of a delayed task
 			list to ensure it is not woken by a timing event.  It will block
 			indefinitely. */
-#if (configUSE_SEGGER_SYSTEMVIEW == 1)
-			traceMOVED_TASK_TO_SUSPENDED_LIST(pxCurrentTCB);
-#endif
 			vListInsertEnd( &xSuspendedTaskList, &( pxCurrentTCB->xStateListItem ) );
 		}
 		else
@@ -5251,18 +5219,12 @@ const TickType_t xConstTickCount = xTickCount;
 			{
 				/* Wake time has overflowed.  Place this item in the overflow
 				list. */
-#if (configUSE_SEGGER_SYSTEMVIEW == 1)
-				traceMOVED_TASK_TO_OVERFLOW_DELAYED_LIST();
-#endif
 				vListInsert( pxOverflowDelayedTaskList, &( pxCurrentTCB->xStateListItem ) );
 			}
 			else
 			{
 				/* The wake time has not overflowed, so the current block list
 				is used. */
-#if (configUSE_SEGGER_SYSTEMVIEW == 1)
-				traceMOVED_TASK_TO_DELAYED_LIST();
-#endif
 				vListInsert( pxDelayedTaskList, &( pxCurrentTCB->xStateListItem ) );
 
 				/* If the task entering the blocked state was placed at the
@@ -5292,17 +5254,11 @@ const TickType_t xConstTickCount = xTickCount;
 		if( xTimeToWake < xConstTickCount )
 		{
 			/* Wake time has overflowed.  Place this item in the overflow list. */
-#if (configUSE_SEGGER_SYSTEMVIEW == 1)
-			traceMOVED_TASK_TO_OVERFLOW_DELAYED_LIST();
-#endif
 			vListInsert( pxOverflowDelayedTaskList, &( pxCurrentTCB->xStateListItem ) );
 		}
 		else
 		{
 			/* The wake time has not overflowed, so the current block list is used. */
-#if (configUSE_SEGGER_SYSTEMVIEW == 1)
-			traceMOVED_TASK_TO_DELAYED_LIST();
-#endif
 			vListInsert( pxDelayedTaskList, &( pxCurrentTCB->xStateListItem ) );
 
 			/* If the task entering the blocked state was placed at the head of the
