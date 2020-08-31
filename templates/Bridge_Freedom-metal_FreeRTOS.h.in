@@ -33,11 +33,5 @@
 {% if config.freeRTOS.define.portUSING_MPU_WRAPPERS is defined %}
 #define portUSING_MPU_WRAPPERS      {{config.freeRTOS.define.portUSING_MPU_WRAPPERS}}
 {% endif %}
-{% if config.freeRTOS.define.configUSE_SEGGER_SYSTEMVIEW is defined %}
-#define configUSE_SEGGER_SYSTEMVIEW             {{config.freeRTOS.define.configUSE_SEGGER_SYSTEMVIEW}}
-#define SYSVIEW_RECORD_ENTER_ISR                {{config.freeRTOS.define.SYSVIEW_RECORD_ENTER_ISR}}
-#define SYSVIEW_RECORD_EXIT_ISR                 {{config.freeRTOS.define.SYSVIEW_RECORD_EXIT_ISR}}
-#define SYSVIEW_RECORD_EXIT_ISR_TO_SCHEDULER    {{config.freeRTOS.define.SYSVIEW_RECORD_EXIT_ISR_TO_SCHEDULER}}
-{% endif %}
 
 #endif /* BRIDGE_FREEDOM_METAL_FREERTOS_H */
