@@ -848,7 +848,7 @@ void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xPMPSettings,
 			"and  t0, t0, t1 \n"
 			"beqz t0, 1f \n"			/* check if Q,F or D is present into misa */
 			"csrr t0, mstatus \n"		/* Floating point unit is present so need to put it into initial state */
-			"lui  t1, 0x1 \n"			/* t1 =  0x1 << 12 */
+			"lui  t1, 0x2 \n"			/* t1 =  0x1 << 12 */
 			"or   t0, t0, t1 \n"
 			"csrw mstatus, t0 \n"		/* Set FS to initial state */
 			"csrwi fcsr, 0 \n"			/* Clear Floating-point Control and Status Register */
