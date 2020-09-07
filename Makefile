@@ -75,6 +75,10 @@ headers : $(FREERTOS_METAL_VENV_PATH)/.stamp
 	$(HIDE) mkdir -p $(BUILD_DIR)/include
 	. $(FREERTOS_METAL_VENV_PATH)/bin/activate && $(FREERTOS_METAL_VENV_PATH)/bin/python3 $(CURRENT_DIR)/scripts/parser_auto_header.py --input_file $(HEADER_TEMPLATES) --output_dir $(BUILD_DIR)/include
 
+$(BUILD_DIR)/%.o: $(CURRENT_DIR)/src/%.c err headers
+	$(HIDE) mkdir -p $(dir $@)
+	$(HIDE) $(CC) -c -o $@ $(CFLAGS) $<
+
 $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.c err headers
 	$(HIDE) mkdir -p $(dir $@)
 	$(HIDE) $(CC) -c -o $@ $(CFLAGS) $<

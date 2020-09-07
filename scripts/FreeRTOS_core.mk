@@ -57,4 +57,17 @@ override ASM_OBJS := 	$(subst $(SOURCE_DIR),$(BUILD_DIR), $(patsubst %.S,%.o,$(f
 						$(subst $(SOURCE_DIR),$(BUILD_DIR), $(patsubst %.s,%.o,$(filter %.s,$(ASM_SOURCES))))\
 						$(subst $(SOURCE_DIR),$(BUILD_DIR), $(patsubst %.asm,%.o,$(filter %.asm,$(ASM_SOURCES))))
 
-override OBJS := $(C_OBJS) $(ASM_OBJS)
+# ----------------------------------------------------------------------
+# Add Freedom-metal port - Here common file to run FreeRTOS under 
+#  Freedom-e-sdk environment.
+# ----------------------------------------------------------------------
+$(info C_SOURCES =$(C_SOURCES))
+$(info C_OBJS =$(C_OBJS))
+
+override C_METAL_SOURCES := $(foreach dir,$(CURRENT_DIR)/src,$(wildcard $(dir)/*.c))
+override C_METAL_OBJS := $(subst $(CURRENT_DIR)/src,$(BUILD_DIR),$(C_METAL_SOURCES:.c=.o))
+
+$(info C_SOURCES =$(C_METAL_SOURCES))
+$(info C_OBJS =$(C_METAL_OBJS))
+
+override OBJS := $(C_OBJS) $(ASM_OBJS) $(C_METAL_OBJS)
