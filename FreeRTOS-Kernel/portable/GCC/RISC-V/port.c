@@ -70,6 +70,11 @@ volatile uint64_t * const pullMachineTimerRegister        = ( volatile uint64_t 
 #if( portUSING_MPU_WRAPPERS == 1 )
 /** Variable that contains the current privilege state */
 volatile uint32_t privilege_status = ePortMACHINE_MODE;
+
+/* We require the address of the pxCurrentTCB variable, but don't want to know
+any details of its type. */
+typedef void TCB_t;
+extern volatile TCB_t * volatile pxCurrentTCB;
 #endif
 
 /* Set configCHECK_FOR_STACK_OVERFLOW to 3 to add ISR stack checking to task
@@ -200,7 +205,7 @@ static void prvSetupPMP( void ) PRIVILEGED_FUNCTION
 		#endif
 
 		ucDefaultAttribute =
-				((portPMP_REGION_READ_ONLY) |
+				((portPMP_REGION_READ_WRITE) |
 				(portPMP_REGION_ADDR_MATCH_NA4));
 
 		lResult = write_pmp_config (&xPmpInfo, portPRIVILEGE_STATUS_REGION,
@@ -226,41 +231,41 @@ BaseType_t xPortFreeRTOSInit( StackType_t xIsrTop ) PRIVILEGED_FUNCTION
 
 	extern BaseType_t xPortMoveISRStackTop( StackType_t *xISRStackTop);
 
-/** 
- * We do the initialization of FreeRTOS priviledged data section
- */
-#if( portUSING_MPU_WRAPPERS == 1 )
-    {
-        /** 
-         * Considered by the compiler as unused because of the inline asm block
-         */
-        extern uint32_t __privileged_data_start__[] __attribute__((unused));
-        extern uint32_t __privileged_data_end__[] __attribute__((unused));
-        __asm__ __volatile__ (
-              /* Zero the privileged_data segment. */
-            "la t1, __privileged_data_start__ \n"
-            "la t2, __privileged_data_end__ \n"
+	/** 
+	 * We do the initialization of FreeRTOS priviledged data section
+	 */
+	#if( portUSING_MPU_WRAPPERS == 1 )
+		{
+			/** 
+			 * Considered by the compiler as unused because of the inline asm block
+			 */
+			extern uint32_t __privileged_data_start__[] __attribute__((unused));
+			extern uint32_t __privileged_data_end__[] __attribute__((unused));
+			__asm__ __volatile__ (
+				/* Zero the privileged_data segment. */
+				"la t1, __privileged_data_start__ \n"
+				"la t2, __privileged_data_end__ \n"
 
-            "bge t1, t2, 2f \n"
+				"bge t1, t2, 2f \n"
 
-            "1: \n"
-            #if __riscv_xlen == 32
-            "sw   x0, 0(t1) \n"
-            "addi t1, t1, 4 \n"
-            "blt  t1, t2, 1b \n"
-            #else
-            "sd   x0, 0(t1) \n"
-            "addi t1, t1, 8 \n"
-            "blt  t1, t2, 1b \n"
-            #endif
-            "2: \n"
-            ::
-            : "t1", "t2"
+				"1: \n"
+				#if __riscv_xlen == 32
+				"sw   x0, 0(t1) \n"
+				"addi t1, t1, 4 \n"
+				"blt  t1, t2, 1b \n"
+				#else
+				"sd   x0, 0(t1) \n"
+				"addi t1, t1, 8 \n"
+				"blt  t1, t2, 1b \n"
+				#endif
+				"2: \n"
+				::
+				: "t1", "t2"
 
-        );
+			);
 
-    }
-#endif
+		}
+	#endif
 
 	/*
 	* xIsrStack Is a Buffer Allocated into Application
@@ -306,28 +311,27 @@ BaseType_t xPortFreeRTOSInit( StackType_t xIsrTop ) PRIVILEGED_FUNCTION
 
 	pullMachineTimerCompareRegister = ( volatile uint64_t *) ( configCLINT_BASE_ADDRESS + 0x4000 + uxHartid * sizeof(uint64_t) );
 
-#if( configCLINT_BASE_ADDRESS != 0 )
-	/* There is a clint then interrupts can branch directly to the FreeRTOS 
-	 * trap handler.
-	 */
- 	__asm__ __volatile__ (
-        "la t0, freertos_risc_v_trap_handler\n"
-	    "csrw mtvec, t0\n"
-    );
-#else
-# warning "*** The interrupt controller must to be configured before (ouside of this file). ***"
-#endif
+	#if( configCLINT_BASE_ADDRESS != 0 )
+		/* There is a clint then interrupts can branch directly to the FreeRTOS 
+		* trap handler.
+		*/
+		__asm__ __volatile__ (
+			"la t0, freertos_risc_v_trap_handler\n"
+			"csrw mtvec, t0\n"
+		);
+	#else
+		#warning "*** The interrupt controller must to be configured before (ouside of this file). ***"
+	#endif
 
-#if( portUSING_MPU_WRAPPERS == 1 )
-		/* Configure the regions in the PMP that are common to all tasks. */
-	prvSetupPMP();
-#endif
+	#if( portUSING_MPU_WRAPPERS == 1 )
+			/* Configure the regions in the PMP that are common to all tasks. */
+		prvSetupPMP();
+	#endif
 
 	return 0;
 }
 /*-----------------------------------------------------------*/
 
-#if( portUSING_MPU_WRAPPERS == 1 )
 /**
  * @brief Do the PMP config switch when switching task
  * @param ulNbPmp       number of configurable PMP
@@ -335,9 +339,33 @@ BaseType_t xPortFreeRTOSInit( StackType_t xIsrTop ) PRIVILEGED_FUNCTION
  * @warning the number of configurable PMP is not the total number of PMP
  * 
  */
+#if( portUSING_MPU_WRAPPERS == 1 )
 __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
 												xMPU_SETTINGS * xPMPSettings) PRIVILEGED_FUNCTION
+#else
+__attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp) PRIVILEGED_FUNCTION
+#endif
 {
+#if( portUSING_MPU_WRAPPERS == 1 )
+	/**
+	 * a0: xPmpInfo.nb_pmp - 3 (3 because We use 3 pmp config by default)
+	 * a1: pxCurrentTCB->xPMPSettings (supposed to be the 2nd element of structure TCB_t)
+	 */
+	#if( __riscv_xlen == 32 )
+		__asm__ __volatile__ (
+			"addi a0, %0, -3	\n\t"
+			"addi a1, %1, 4		\n\t"
+			:: "r"(xPmpInfo.nb_pmp), "r"(pxCurrentTCB) : "a0", "a1"
+		);
+	#endif /* ( __riscv_xlen == 32 ) */
+	#if( __riscv_xlen == 64 )
+		__asm__ __volatile__ (
+			"addi a0, %0, -3	\n\t"
+			"addi a1, %1, 8		\n\t"
+			:: "r"(xPmpInfo.nb_pmp), "r"(pxCurrentTCB) : "a0", "a1"
+		);
+	#endif /* ( __riscv_xlen == 64 ) */
+
     /* Compute jump offset to avoid configure unuse PMP */
 	__asm__ __volatile__ (
 		"li t0, 13 \n" /* maximum number of reconfigurable PMP for a core */
@@ -382,73 +410,73 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
      */
 #if __riscv_xlen == 32
 	__asm__ __volatile__ (
-		"add t5, a1, 32 \n" /* get pmp address configs */
+		"add t0, a1, 32 \n" /* get pmp address configs */
         "la t1, 1f \n" /* compute the jump address */
         "add t2, t1, a2 \n"
         "jr t2 \n"
         "1: \n"
-        "lw t4, 48(t5) \n"
-        "csrw pmpaddr15, t4 \n"
-        "lw t3, 44(t5) \n"
-        "csrw pmpaddr14, t3 \n"
-        "lw t2, 40(t5) \n"
+        "lw t2, 48(t0) \n"
+        "csrw pmpaddr15, t2 \n"
+        "lw t1, 44(t0) \n"
+        "csrw pmpaddr14, t1 \n"
+        "lw t2, 40(t0) \n"
         "csrw pmpaddr13, t2 \n"
-        "lw t1, 36(t5) \n"
+        "lw t1, 36(t0) \n"
         "csrw pmpaddr12, t1 \n"
-        "lw t4, 32(t5) \n"
-        "csrw pmpaddr11, t4 \n"
-        "lw t3, 28(t5) \n"
-        "csrw pmpaddr10, t3 \n"
-        "lw t2, 24(t5) \n"
+        "lw t2, 32(t0) \n"
+        "csrw pmpaddr11, t2 \n"
+        "lw t1, 28(t0) \n"
+        "csrw pmpaddr10, t1 \n"
+        "lw t2, 24(t0) \n"
         "csrw pmpaddr9, t2 \n"
-        "lw t1, 20(t5) \n"
+        "lw t1, 20(t0) \n"
         "csrw pmpaddr8, t1 \n"
-        "lw t4, 16(t5) \n"
-        "csrw pmpaddr7, t4 \n"
-        "lw t3, 12(t5) \n"
-        "csrw pmpaddr6, t3 \n"
-        "lw t2, 8(t5) \n"
+        "lw t2, 16(t0) \n"
+        "csrw pmpaddr7, t2 \n"
+        "lw t1, 12(t0) \n"
+        "csrw pmpaddr6, t1 \n"
+        "lw t2, 8(t0) \n"
         "csrw pmpaddr5, t2 \n"
-        "lw t1, 4(t5) \n"
+        "lw t1, 4(t0) \n"
         "csrw pmpaddr4, t1 \n"
-        "lw t4, 0(t5) \n"
-        "csrw pmpaddr3, t4 \n"
-        ::: "t1", "t2", "t3", "t4"
+        "lw t2, 0(t0) \n"
+        "csrw pmpaddr3, t2 \n"
+        ::: "t0", "t1", "t2"
     );
 #elif __riscv_xlen == 64
 	__asm__ __volatile__ (
-		"add t5, a1, 32 \n" /* get pmp address configs */
+		"add t0, a1, 32 \n" /* get pmp address configs */
         "la t1, 1f \n" /* compute the jump address */
         "add t2, t1, a2 \n"
         "jr t2 \n"
         "1: \n"
-        "ld t4, 96(t5) \n"
-        "csrw pmpaddr15, t4 \n"
-        "ld t3, 88(t5) \n"
-        "csrw pmpaddr14, t3 \n"
-        "ld t2, 80(t5) \n"
+        "ld t2, 96(t0) \n"
+        "csrw pmpaddr15, t2 \n"
+        "ld t1, 88(t0) \n"
+        "csrw pmpaddr14, t1 \n"
+        "ld t2, 80(t0) \n"
         "csrw pmpaddr13, t2 \n"
-        "ld t1, 72(t5) \n"
+        "ld t1, 72(t0) \n"
         "csrw pmpaddr12, t1 \n"
-        "ld t4, 64(t5) \n"
-        "csrw pmpaddr11, t4 \n"
-        "ld t3, 56(t5) \n"
-        "csrw pmpaddr10, t3 \n"
-        "ld t2, 48(t5) \n"
+        "ld t2, 64(t0) \n"
+        "csrw pmpaddr11, t2 \n"
+        "ld t1, 56(t0) \n"
+        "csrw pmpaddr10, t1 \n"
+        "ld t2, 48(t0) \n"
         "csrw pmpaddr9, t2 \n"
-        "ld t1, 40(t5) \n"
+        "ld t1, 40(t0) \n"
         "csrw pmpaddr8, t1 \n"
-        "ld t4, 32(t5) \n"
-        "csrw pmpaddr7, t4 \n"
-        "ld t3, 24(t5) \n"
-        "csrw pmpaddr6, t3 \n"
-        "ld t2, 16(t5) \n"
+        "ld t2, 32(t0) \n"
+        "csrw pmpaddr7, t2 \n"
+        "ld t1, 24(t0) \n"
+        "csrw pmpaddr6, t1 \n"
+        "ld t2, 16(t0) \n"
         "csrw pmpaddr5, t2 \n"
-        "ld t1, 8(t5) \n"
+        "ld t1, 8(t0) \n"
         "csrw pmpaddr4, t1 \n"
-        "ld t4, 0(t5) \n"
-        "csrw pmpaddr3, t4 \n"
-        ::: "t1", "t2", "t3", "t4"
+        "ld t2, 0(t0) \n"
+        "csrw pmpaddr3, t2 \n"
+        ::: "t0", "t1", "t2"
     );
 #endif
 
@@ -478,61 +506,67 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
 	/* Configure PMP mode (rights and mode) */
 #if __riscv_xlen == 32
 	__asm__ __volatile__ (
-		"add t3, a1, 16 \n" /* get pmp config mask */
+		"add a0, a1, 16 \n" /* get pmp config mask */
 
         "la t0, 1f \n"
         "add t0, t0, t2 \n"
         "jr t0 \n"
         "1: \n"
 
-		"lw t1, 12(t3) \n"
+		"lw t1, 12(a0) \n"
 		"lw t2, 12(a1)\n"
 		"csrc pmpcfg3, t1 \n"
         "csrs pmpcfg3, t2 \n" 
 
-		"lw t1, 8(t3) \n"
+		"lw t1, 8(a0) \n"
 		"lw t2, 8(a1)\n"
 		"csrc pmpcfg2, t1 \n"
         "csrs pmpcfg2, t2 \n" 
 
-		"lw t1, 4(t3) \n"
+		"lw t1, 4(a0) \n"
 		"lw t2, 4(a1)\n"
 		"csrc pmpcfg1, t1 \n"
         "csrs pmpcfg1, t2 \n" 
 
-		"lw t1, 0(t3) \n"
+		"lw t1, 0(a0) \n"
 		"lw t2, 0(a1)\n"
 		"csrc pmpcfg0, t1 \n"
         "csrs pmpcfg0, t2 \n" 
-        ::: "t0", "t1", "t2", "t3", "t4"
+        ::: "t0", "t1", "t2", "a0", "a1"
 	);
 #elif __riscv_xlen == 64
 	__asm__ __volatile__ (
-		"add t3, a1, 16 \n" /* get pmp config mask */
+		"add a0, a1, 16 \n" /* get pmp config mask */
 
         "la t0, 1f \n"
         "add t0, t0, t2 \n"
         "jr t0 \n"
         "1: \n"
 
-		"ld t1, 8(t3) \n"
+		"ld t1, 8(a0) \n"
 		"ld t2, 8(a1)\n"
 		"csrc pmpcfg2, t1 \n"
         "csrs pmpcfg2, t2 \n" 
 
-		"ld t1, 0(t3) \n"
+		"ld t1, 0(a0) \n"
 		"ld t2, 0(a1)\n"
 		"csrc pmpcfg0, t1 \n"
         "csrs pmpcfg0, t2 \n" 
-        ::: "t0", "t1", "t2", "t3", "t4"
+        ::: "t0", "t1", "t2", "a0", "a1"
 	);
 #endif
+	__asm__ __volatile__ (
+	    "fence.i \n"
+		:::
+	);
+#endif /* ( portUSING_MPU_WRAPPERS == 1 ) */
+
 	__asm__ __volatile__ (
 	    "ret \n"
 		:::
 	);
 }
-#endif
+
 /*-----------------------------------------------------------*/
 
 #if( configCLINT_BASE_ADDRESS != 0 )
@@ -625,7 +659,7 @@ void vPortEndScheduler( void )
 /*-----------------------------------------------------------*/
 
 #if( portUSING_MPU_WRAPPERS == 1 )
-__attribute__((naked)) void vPortSyscall( unsigned int Value )
+__attribute__((naked)) void vPortSyscall( unsigned int Value ) PRIVILEGED_FUNCTION
 {
 	/* Remove compiler warning about unused parameter. */
 	( void ) Value;
@@ -638,24 +672,32 @@ __attribute__((naked)) void vPortSyscall( unsigned int Value )
 }
 /*-----------------------------------------------------------*/
 
-__attribute__ (( naked )) void vRaisePrivilege( void )
+__attribute__((naked)) void vRaisePrivilege( void ) PRIVILEGED_FUNCTION
 {
 	__asm__ __volatile__ (
-        "	li	a0,%0 	\n"
-        "	ecall 		\n"
-        "	ret 		\n"
-        ::"i"(portSVC_SWITCH_TO_MACHINE):
+		"	.extern privilege_status \n"
+        "	li	a0,%0 		\n"
+        "	ecall 			\n"
+		"	la 	a0, privilege_status \n"
+		"	li 	t0, %1 		\n"
+		"	sw	t0, 0(a0)	\n" /* we use sw because privilege_status is uint32_t */
+        "	ret 			\n"
+        ::"i"(portSVC_SWITCH_TO_MACHINE), "i"(ePortMACHINE_MODE):
 	);
 }
 /*-----------------------------------------------------------*/
 
-__attribute__ (( naked )) void vResetPrivilege( void ) 
+__attribute__((naked)) void vResetPrivilege( void ) PRIVILEGED_FUNCTION
 {
 	__asm__ __volatile__ (
-        "	li	a0,%0 	\n"
-        "	ecall 		\n"
-        "	ret 		\n"
-        ::"i"(portSVC_SWITCH_TO_USER):
+		"	.extern privilege_status \n"
+        "	li	a0,%0 		\n"
+        "	ecall 			\n"
+		"	la 	a0, privilege_status \n"
+		"	li 	t0, %1 		\n"
+		"	sw	t0, 0(a0)	\n" /* we use sw because privilege_status is uint32_t */
+        "	ret 			\n"
+        ::"i"(portSVC_SWITCH_TO_USER), "i"(ePortUSER_MODE):
 	);
 }
 /*-----------------------------------------------------------*/
@@ -836,8 +878,87 @@ void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xPMPSettings,
 	}
 }
 /*-----------------------------------------------------------*/
-
 #endif
+
+__attribute__((naked)) void vPortUpdatePrivilegeStatus( UBaseType_t status ) PRIVILEGED_FUNCTION
+{
+	/* Remove compiler warning about unused parameter. */
+	( void ) status;
+
+	#if ( portUSING_MPU_WRAPPERS == 1 )
+        __asm__ __volatile__(
+			"	.extern privilege_status \n"
+			"	li t0, 0x1800		\n"
+			"	and t0, a0, t0		\n"
+			"	srli t0, t0, 11		\n"
+			"	la a0, privilege_status \n"
+			"	sw	t0, 0(a0)"
+            ::: "t0", "a0"
+        );
+	#endif /* if ( portUSING_MPU_WRAPPERS == 1 ) */
+
+ 	__asm__ __volatile__ ( 
+        "	ret 		\n"
+        :::
+	);
+}
+/*-----------------------------------------------------------*/
+
+#if ( portUSING_MPU_WRAPPERS == 1 )
+StackType_t * pxPortInitialiseStack( StackType_t * pxTopOfStack,
+										TaskFunction_t pxCode,
+										void * pvParameters,
+										BaseType_t xRunPrivileged ) PRIVILEGED_FUNCTION
+#else /* if ( portUSING_MPU_WRAPPERS == 1 ) */
+StackType_t * pxPortInitialiseStack( StackType_t * pxTopOfStack,
+										TaskFunction_t pxCode,
+										void * pvParameters ) PRIVILEGED_FUNCTION
+#endif /* if ( portUSING_MPU_WRAPPERS == 1 ) */
+{
+	UBaseType_t mstatus;
+	extern StackType_t * pxPortAsmInitialiseStack( StackType_t *, TaskFunction_t, void *, UBaseType_t);
+
+	/* Generate the value to set in mstatus. */
+	#if( portUSING_MPU_WRAPPERS == 1 )
+		/** 
+		 * Generate the value:
+		 * - 0x80   (MPIE set and MPP = usermode) if run in unprivilege mode (xRunPrivileged == 0). 
+		 * - 0x1880 (MPIE set and MPP = machinemode) if run in privilege mode (xRunPrivileged != 0). 
+		 */
+		__asm__ __volatile__ (
+			"	csrr t0, mstatus	\n"		/* Obtain current mstatus value. */
+			"	andi t0, t0, ~0x8	\n"		/* Ensure interrupts are disabled when the stack is restored within an ISR.  Required when a task is created after the schedulre has been started, otherwise interrupts would be disabled anyway. */
+			"	addi t1, x0, 0x188	\n"		/* Generate the value 0x1880, which are the MPIE and MPP bits to set in mstatus. */
+			"	slli t1, t1, 4		\n"
+			"	not t2, t1			\n"		/* reset previous value */
+			"	and t0, t0, t2		\n"
+			"	mv t1, x0			\n"
+			"	beqz a3, 1f			\n"
+			"	addi t1, t1, 0x180	\n"
+			"	1:					\n"
+			"	ori t1, t1, 0x8		\n"
+			"	slli t1, t1, 4		\n"
+			"	or %0, t0, t1		\n"
+			:"=r" ( mstatus )::"t0", "t1", "t2", "a3"
+		);
+	#else
+		__asm__ __volatile__ (
+			"	csrr t0, mstatus	\n"		/* Obtain current mstatus value. */
+			"	andi t0, t0, ~0x8	\n"		/* Ensure interrupts are disabled when the stack is restored within an ISR.  Required when a task is created after the schedulre has been started, otherwise interrupts would be disabled anyway. */
+			"	addi t1, x0, 0x188	\n"		/* Generate the value 0x1880, which are the MPIE and MPP bits to set in mstatus. */
+			"	slli t1, t1, 4		\n"
+			"	not t2, t1			\n"		/* reset previous value */
+			"	and t0, t0, t2		\n"
+			"	addi t1, x0, 0x188	\n"
+			"	slli t1, t1, 4		\n"
+			"	or %0, t0, t1		\n"
+			:"=r" ( mstatus )::"t0", "t1", "t2"
+		);
+	#endif /* ( portUSING_MPU_WRAPPERS == 1 ) */
+
+	return pxPortAsmInitialiseStack(pxTopOfStack, pxCode, pvParameters, mstatus);
+}
+/*-----------------------------------------------------------*/
 
 #if( configENABLE_FPU == 1 )
 	void prvSetupFPU( void ) /* PRIVILEGED_FUNCTION */

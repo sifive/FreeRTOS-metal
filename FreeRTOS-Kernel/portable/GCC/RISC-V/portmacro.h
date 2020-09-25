@@ -278,7 +278,7 @@ extern void vTaskSwitchContext( void );
 #if( portUSING_MPU_WRAPPERS == 1 )
 #define portYIELD() 	vPortSyscall(portSVC_YIELD)
 #else
-#define portYIELD() 	__asm volatile ( "ecall" );
+#define portYIELD() 	__asm volatile ( "mv a0, x0 \necall" );
 #endif
 #define portEND_SWITCHING_ISR( xSwitchRequired ) if( xSwitchRequired ) vTaskSwitchContext()
 #define portYIELD_FROM_ISR( x ) portEND_SWITCHING_ISR( x )
