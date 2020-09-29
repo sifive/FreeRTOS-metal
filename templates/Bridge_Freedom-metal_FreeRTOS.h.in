@@ -13,7 +13,7 @@
 #ifndef BRIDGE_FREEDOM_METAL_FREERTOS_H
 #define BRIDGE_FREEDOM_METAL_FREERTOS_H
 
-#include <metal/machine/platform.h>
+#include <metal/platform.h>
 
 #if defined(METAL_RISCV_CLINT0)
 #define MTIME_CTRL_ADDR               METAL_RISCV_CLINT0_0_BASE_ADDRESS
