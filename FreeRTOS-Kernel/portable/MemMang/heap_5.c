@@ -150,16 +150,24 @@ void *pvReturn = NULL;
 		{
 			/* The wanted size is increased so it can contain a BlockLink_t
 			structure in addition to the requested amount of bytes. */
-			if( xWantedSize > 0 )
+			if( ( xWantedSize > 0 ) && 
+			    ( ( xWantedSize + xHeapStructSize ) >  xWantedSize ) ) /* Overflow check */
 			{
 				xWantedSize += xHeapStructSize;
 
-				/* Ensure that blocks are always aligned to the required number
-				of bytes. */
+				/* Ensure that blocks are always aligned */
 				if( ( xWantedSize & portBYTE_ALIGNMENT_MASK ) != 0x00 )
 				{
-					/* Byte alignment required. */
-					xWantedSize += ( portBYTE_ALIGNMENT - ( xWantedSize & portBYTE_ALIGNMENT_MASK ) );
+					/* Byte alignment required. Check for overflow */
+					if( ( xWantedSize + ( portBYTE_ALIGNMENT - ( xWantedSize & portBYTE_ALIGNMENT_MASK ) ) ) >
+						xWantedSize )
+					{
+						xWantedSize += ( portBYTE_ALIGNMENT - ( xWantedSize & portBYTE_ALIGNMENT_MASK ) );
+					} 
+					else 
+					{
+						xWantedSize = 0;
+					}
 				}
 				else
 				{
@@ -168,7 +176,7 @@ void *pvReturn = NULL;
 			}
 			else
 			{
-				mtCOVERAGE_TEST_MARKER();
+				xWantedSize = 0;
 			}
 
 			if( ( xWantedSize > 0 ) && ( xWantedSize <= xFreeBytesRemaining ) )
