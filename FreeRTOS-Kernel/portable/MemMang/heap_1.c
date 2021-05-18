@@ -71,13 +71,20 @@ void *pvPortMalloc( size_t xWantedSize )
 void *pvReturn = NULL;
 static uint8_t *pucAlignedHeap = NULL;
 
-	/* Ensure that blocks are always aligned to the required number of bytes. */
-	#if( portBYTE_ALIGNMENT != 1 )
+	/* Ensure that blocks are always aligned. */
+	#if ( portBYTE_ALIGNMENT != 1 )
 	{
 		if( xWantedSize & portBYTE_ALIGNMENT_MASK )
 		{
-			/* Byte alignment required. */
-			xWantedSize += ( portBYTE_ALIGNMENT - ( xWantedSize & portBYTE_ALIGNMENT_MASK ) );
+			/* Byte alignment required. Check for overflow. */
+			if ( (xWantedSize + ( portBYTE_ALIGNMENT - ( xWantedSize & portBYTE_ALIGNMENT_MASK ) )) > xWantedSize )
+			{
+				xWantedSize += ( portBYTE_ALIGNMENT - ( xWantedSize & portBYTE_ALIGNMENT_MASK ) );
+			} 
+			else 
+			{
+				xWantedSize = 0;
+			}
 		}
 	}
 	#endif
@@ -90,8 +97,10 @@ static uint8_t *pucAlignedHeap = NULL;
 			pucAlignedHeap = ( uint8_t * ) ( ( ( portPOINTER_SIZE_TYPE ) &ucHeap[ portBYTE_ALIGNMENT ] ) & ( ~( ( portPOINTER_SIZE_TYPE ) portBYTE_ALIGNMENT_MASK ) ) );
 		}
 
+
 		/* Check there is enough room left for the allocation. */
-		if( ( ( xNextFreeByte + xWantedSize ) < configADJUSTED_HEAP_SIZE ) &&
+		if( ( xWantedSize > 0 ) && /* valid size */
+			( ( xNextFreeByte + xWantedSize ) < configADJUSTED_HEAP_SIZE ) &&
 			( ( xNextFreeByte + xWantedSize ) > xNextFreeByte )	)/* Check for overflow. */
 		{
 			/* Return the next free byte then increment the index past this
