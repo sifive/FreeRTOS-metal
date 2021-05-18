@@ -383,6 +383,9 @@ Queue_t * const pxQueue = xQueue;
 			/* Allocate enough space to hold the maximum number of items that
 			can be in the queue at any time. */
 			xQueueSizeInBytes = ( size_t ) ( uxQueueLength * uxItemSize ); /*lint !e961 MISRA exception as the casts are only redundant for some ports. */
+
+			/* Check for addition overflow. */
+			configASSERT( ( sizeof( Queue_t ) + xQueueSizeInBytes ) > xQueueSizeInBytes );
 		}
 
 		/* Allocate the queue and storage area.  Justification for MISRA
