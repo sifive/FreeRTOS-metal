@@ -620,7 +620,7 @@ test_if_external_interrupt:			/* If there is a CLINT and the mtimer interrupt is
 	addi t1, t1, 4					/* 0x80000007 + 4 = 0x8000000b == Machine external interrupt. */
     csrr t2, mcause
 	bne t2, t1, unrecoverable_error	/* Something as yet unhandled. */
-	j unrecoverable_error
+	j external_interrupt
 
 #endif /* portasmHAS_CLINT */
 
