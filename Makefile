@@ -96,7 +96,7 @@ $(FREERTOS_METAL_VENV_PATH)/.stamp: $(FREERTOS_METAL_VENV_PATH)/bin/activate req
 	. $(FREERTOS_METAL_VENV_PATH)/bin/activate && $(FREERTOS_METAL_VENV_PATH)/bin/pip install pip==20.0.1
 	. $(FREERTOS_METAL_VENV_PATH)/bin/activate && $(FREERTOS_METAL_VENV_PATH)/bin/pip install -r requirements.txt
 	@echo "Remember to source $(FREERTOS_METAL_VENV_PATH)/bin/activate!"
-	touch $@
+	-touch $@
 
 $(FREERTOS_METAL_VENV_PATH)/bin/activate:
 	python3 -m venv $(FREERTOS_METAL_VENV_PATH)
