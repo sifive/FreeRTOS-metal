@@ -17,10 +17,10 @@
 
 #if defined(METAL_RISCV_CLINT0)
 #define MTIME_CTRL_ADDR               METAL_RISCV_CLINT0_0_BASE_ADDRESS
-#elif defined(METAL_SIFIVE_CLIC0)
-#define MTIME_CTRL_ADDR               METAL_SIFIVE_CLIC0_0_BASE_ADDRESS
 #elif defined(METAL_SIFIVE_CLIC1)
 #define MTIME_CTRL_ADDR               METAL_SIFIVE_CLIC1_0_BASE_ADDRESS
+#elif defined(METAL_SIFIVE_CLIC0)
+#define MTIME_CTRL_ADDR               METAL_SIFIVE_CLIC0_0_BASE_ADDRESS
 {% if config.freeRTOS.define.MTIME_CTRL_ADDR is defined %}
 #else
 #define MTIME_CTRL_ADDR               {{config.freeRTOS.define.MTIME_CTRL_ADDR}}
