@@ -114,7 +114,7 @@ BaseType_t xIsPrivileged( void )
 /**
  * @brief Setup of base region (first 3 regions)
  * @details those regions won't be reconfigured during context switch
- * 
+ *
  */
 static void prvSetupPMP( void ) PRIVILEGED_FUNCTION
 {
