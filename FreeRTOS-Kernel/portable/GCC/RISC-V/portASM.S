@@ -424,6 +424,7 @@ handle_exception:
      * else: problem
      */
 
+    andi    t0, t0, 0x3FF /* extract EXCCODE bit fields */
     addi	t0, t0, -8
     blt		t0, x0, is_exception /* mcause < 8, must be fault */
     addi	t0, t0, -4
@@ -574,12 +575,10 @@ handle_interrupt:
     load_x sp, xISRStackTop			/* Switch to ISR stack before function call. */
 
 #if( portasmHAS_CLINT != 0 )
-    addi t0, x0, 1
-
-    slli t0, t0, __riscv_xlen - 1   /* LSB is already set, shift into MSB.  Shift 31 on 32-bit or 63 on 64-bit cores. */
-    addi t1, t0, 7					/* 0x8000[]0007 == machine timer interrupt. */
-    csrr t2, mcause
-    bne t2, t1, test_if_external_interrupt
+    csrr    t2, mcause
+    andi    t2, t2, 0x3FF			/* extract EXCCODE bit fields */
+    addi t1, x0, 7					/* 7 == machine timer interrupt. */
+    bne t2, t1, external_interrupt
 
     load_x t0, pullMachineTimerCompareRegister  /* Load address of compare register into t0. */
     load_x t1, pullNextTime  		/* Load the address of ullNextTime into t1. */
@@ -615,15 +614,6 @@ handle_interrupt:
 restore_before_exit:
     mv  sp, s1
     j end_trap_handler
-
-test_if_external_interrupt:			/* If there is a CLINT and the mtimer interrupt is not pending then check to see if an external interrupt is pending. */
-    addi t1, t1, 4					/* 0x80000007 + 4 = 0x8000000b == Machine external interrupt. */
-    csrr t2, mcause
-    beq t2, t1, external_interrupt	/* It is an external IRQ. */
-    addi t1, t1, 1					/* 0x8000000b + 1 = 0x8000000c == CLIC interrupt. */
-    beq t2, t1, external_interrupt	/* It is an external IRQ. */
-    j unrecoverable_error
-
 #endif /* portasmHAS_CLINT */
 
 external_interrupt:

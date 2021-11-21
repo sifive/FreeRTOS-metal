@@ -28,7 +28,7 @@
 /* ------------------------------------------------------------------
  * This file is part of the FreeRTOS distribution and was contributed
  * to the project by SiFive
- * 
+ *
  * Implementation of functions defined in portable.h for the RISC-V 
  * RV32 port.
  * ------------------------------------------------------------------
@@ -221,9 +221,9 @@ static void prvSetupPMP( void ) PRIVILEGED_FUNCTION
 /*-----------------------------------------------------------*/
 
 /**
- * @brief 
- * 
- * @param xIsrTop 
+ * @brief
+ *
+ * @param xIsrTop
  */
 BaseType_t xPortFreeRTOSInit( StackType_t xIsrTop ) PRIVILEGED_FUNCTION
 {
@@ -231,12 +231,12 @@ BaseType_t xPortFreeRTOSInit( StackType_t xIsrTop ) PRIVILEGED_FUNCTION
 
 	extern BaseType_t xPortMoveISRStackTop( StackType_t *xISRStackTop);
 
-	/** 
+	/**
 	 * We do the initialization of FreeRTOS priviledged data section
 	 */
 	#if( portUSING_MPU_WRAPPERS == 1 )
 		{
-			/** 
+			/**
 			 * Considered by the compiler as unused because of the inline asm block
 			 */
 			extern uint32_t __privileged_data_start__[] __attribute__((unused));
@@ -269,7 +269,7 @@ BaseType_t xPortFreeRTOSInit( StackType_t xIsrTop ) PRIVILEGED_FUNCTION
 
 	/*
 	* xIsrStack Is a Buffer Allocated into Application
-	* xIsrStack_top is the Top adress of this Buffer 
+	* xIsrStack_top is the Top adress of this Buffer
 	* it will contain  the isrstack and space or the registeries backup
 	*
 	*                 Top +----------------------+ xIsrTop
@@ -312,7 +312,7 @@ BaseType_t xPortFreeRTOSInit( StackType_t xIsrTop ) PRIVILEGED_FUNCTION
 	pullMachineTimerCompareRegister = ( volatile uint64_t *) ( configCLINT_BASE_ADDRESS + 0x4000 + uxHartid * sizeof(uint64_t) );
 
 	#if( configCLINT_BASE_ADDRESS != 0 )
-		/* There is a clint then interrupts can branch directly to the FreeRTOS 
+		/* There is a clint then interrupts can branch directly to the FreeRTOS
 		* trap handler.
 		*/
 		__asm__ __volatile__ (
@@ -337,7 +337,7 @@ BaseType_t xPortFreeRTOSInit( StackType_t xIsrTop ) PRIVILEGED_FUNCTION
  * @param ulNbPmp       number of configurable PMP
  * @param xPMPSettings  PMP configs stored in task TCB
  * @warning the number of configurable PMP is not the total number of PMP
- * 
+ *
  */
 #if( portUSING_MPU_WRAPPERS == 1 )
 __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp,
@@ -378,7 +378,7 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp) PRIVILEGED_FUN
 #if __riscv_xlen == 32
     __asm__ __volatile__ (
         "li t1, 0x18181818 \n"
-        /** 
+        /**
          * we avoid disabling permanent PMP config, therefore those region mask
          * are set to 0
         */
@@ -392,7 +392,7 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp) PRIVILEGED_FUN
 #elif __riscv_xlen == 64
     __asm__ __volatile__ (
         "li t1, 0x1818181818181818 \n"
-        /** 
+        /**
          * we avoid disabling permanent PMP config, therefore those region mask
          * are set to 0
          */
@@ -404,7 +404,7 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp) PRIVILEGED_FUN
 #endif
 
 	/**
-     * Save pmp address in pmpaddrx registers 
+     * Save pmp address in pmpaddrx registers
      * Please note that pmpaddr0, pmpaddr1, pmpaddr2 are not reconfigured,
      * they are configured once at the initialization of the scheduler
      */
@@ -480,7 +480,6 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp) PRIVILEGED_FUN
     );
 #endif
 
-	
 #if __riscv_xlen == 32
     /* Compute jump offset to avoid configure unuse PMP 32bits version */
 	__asm__ __volatile__ (
@@ -502,7 +501,7 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp) PRIVILEGED_FUN
 		::: "a0", "t1", "t2"
 	);
 #endif
-		
+
 	/* Configure PMP mode (rights and mode) */
 #if __riscv_xlen == 32
 	__asm__ __volatile__ (
@@ -516,22 +515,22 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp) PRIVILEGED_FUN
 		"lw t1, 12(a0) \n"
 		"lw t2, 12(a1)\n"
 		"csrc pmpcfg3, t1 \n"
-        "csrs pmpcfg3, t2 \n" 
+        "csrs pmpcfg3, t2 \n"
 
 		"lw t1, 8(a0) \n"
 		"lw t2, 8(a1)\n"
 		"csrc pmpcfg2, t1 \n"
-        "csrs pmpcfg2, t2 \n" 
+        "csrs pmpcfg2, t2 \n"
 
 		"lw t1, 4(a0) \n"
 		"lw t2, 4(a1)\n"
 		"csrc pmpcfg1, t1 \n"
-        "csrs pmpcfg1, t2 \n" 
+        "csrs pmpcfg1, t2 \n"
 
 		"lw t1, 0(a0) \n"
 		"lw t2, 0(a1)\n"
 		"csrc pmpcfg0, t1 \n"
-        "csrs pmpcfg0, t2 \n" 
+        "csrs pmpcfg0, t2 \n"
         ::: "t0", "t1", "t2", "a0", "a1"
 	);
 #elif __riscv_xlen == 64
@@ -546,12 +545,12 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp) PRIVILEGED_FUN
 		"ld t1, 8(a0) \n"
 		"ld t2, 8(a1)\n"
 		"csrc pmpcfg2, t1 \n"
-        "csrs pmpcfg2, t2 \n" 
+        "csrs pmpcfg2, t2 \n"
 
 		"ld t1, 0(a0) \n"
 		"ld t2, 0(a1)\n"
 		"csrc pmpcfg0, t1 \n"
-        "csrs pmpcfg0, t2 \n" 
+        "csrs pmpcfg0, t2 \n"
         ::: "t0", "t1", "t2", "a0", "a1"
 	);
 #endif
@@ -609,7 +608,7 @@ __attribute__ (( naked )) void vPortPmpSwitch (	uint32_t ulNbPmp) PRIVILEGED_FUN
 
 /**
  * @brief Start scheduler
- * 
+ *
  * @return BaseType_t error code (pdFAIL or pdPASS)
  */
 BaseType_t xPortStartScheduler( void ) PRIVILEGED_FUNCTION
@@ -650,8 +649,8 @@ void vPortEndScheduler( void )
 
 	xPortRestoreBeforeFirstTask();
 
-	/* 
-	 * Should not get here as after calling xPortRestoreBeforeFirstTask() we should 
+	/*
+	 * Should not get here as after calling xPortRestoreBeforeFirstTask() we should
 	 * return after de execution of xPortStartFirstTask in xPortStartScheduler function.
 	 */
 	for( ;; );
@@ -664,7 +663,7 @@ __attribute__((naked)) void vPortSyscall( unsigned int Value ) PRIVILEGED_FUNCTI
 	/* Remove compiler warning about unused parameter. */
 	( void ) Value;
 
- 	__asm__ __volatile__ ( 
+ 	__asm__ __volatile__ (
         "	ecall 		\n"
         "	ret 		\n"
         :::
@@ -705,7 +704,7 @@ __attribute__((naked)) void vResetPrivilege( void ) PRIVILEGED_FUNCTION
 /**
  * @brief Store PMP settings in Task TCB - the name this function
  * 		  is vPortStoreTaskMPUSettings in order to be MPU compliant
- * 
+ *
  * @param[out]  xPMPSettings    PMP settings stored in Task TCB
  * @param[in]   xRegions        PMP configuration of the task
  * @param[in]   pxBottomOfStack address of bottom of stack
@@ -753,18 +752,18 @@ void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xPMPSettings,
 
 		xPMPSettings->uxRegionBaseAddress[0] = uxBaseAddressChecked;
 
-		xPMPSettings->uxPmpConfigRegAttribute[portGET_PMPCFG_IDX(portSTACK_REGION_START)] += 
+		xPMPSettings->uxPmpConfigRegAttribute[portGET_PMPCFG_IDX(portSTACK_REGION_START)] +=
                 ((UBaseType_t)((portPMP_REGION_READ_WRITE) |
                 (portPMP_REGION_ADDR_MATCH_NA4)) <<
                 portPMPCFG_BIT_SHIFT(portSTACK_REGION_START));
 
-		xPMPSettings->uxPmpConfigRegMask[portGET_PMPCFG_IDX(portSTACK_REGION_START)] += 
+		xPMPSettings->uxPmpConfigRegMask[portGET_PMPCFG_IDX(portSTACK_REGION_START)] +=
 			    ((UBaseType_t)0xFF << portPMPCFG_BIT_SHIFT(portSTACK_REGION_START));
 
 		/* Config stack end address and TOR */
 		uxBaseAddressChecked = 0;
         lResult = addr_modifier (xPmpInfo.granularity,
-                                (size_t) pxBottomOfStack + ( size_t ) ulStackDepth * sizeof( StackType_t ), 
+                                (size_t) pxBottomOfStack + ( size_t ) ulStackDepth * sizeof( StackType_t ),
                                 &uxBaseAddressChecked);
 		#if( configASSERT_DEFINED == 1 )
 		{
@@ -779,14 +778,14 @@ void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xPMPSettings,
 				(portPMP_REGION_ADDR_MATCH_TOR)) <<
 				portPMPCFG_BIT_SHIFT(portSTACK_REGION_END));
 
-		xPMPSettings->uxPmpConfigRegMask[portGET_PMPCFG_IDX(portSTACK_REGION_END)] += 
+		xPMPSettings->uxPmpConfigRegMask[portGET_PMPCFG_IDX(portSTACK_REGION_END)] +=
 			((UBaseType_t)0xFF << portPMPCFG_BIT_SHIFT(portSTACK_REGION_END));
 
 		/* Invalidate all other configurable regions. */
 		for( ul = 2; ul < portNUM_CONFIGURABLE_REGIONS_REAL (xPmpInfo.nb_pmp) + 2; ul++ )
 		{
             xPMPSettings->uxRegionBaseAddress[ul] = 0UL;
-            xPMPSettings->uxPmpConfigRegMask[portGET_PMPCFG_IDX(portSTACK_REGION_START + ul)] += 
+            xPMPSettings->uxPmpConfigRegMask[portGET_PMPCFG_IDX(portSTACK_REGION_START + ul)] +=
                 ((UBaseType_t)0xFF << portPMPCFG_BIT_SHIFT(portSTACK_REGION_START + ul));
 		}
 	}
@@ -811,18 +810,18 @@ void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xPMPSettings,
 
             xPMPSettings->uxRegionBaseAddress[0] = uxBaseAddressChecked;
 
-            xPMPSettings->uxPmpConfigRegAttribute[portGET_PMPCFG_IDX(portSTACK_REGION_START)] += 
+            xPMPSettings->uxPmpConfigRegAttribute[portGET_PMPCFG_IDX(portSTACK_REGION_START)] +=
                     ((UBaseType_t)((portPMP_REGION_READ_WRITE) |
                     (portPMP_REGION_ADDR_MATCH_NA4)) <<
                     portPMPCFG_BIT_SHIFT(portSTACK_REGION_START));
 
-            xPMPSettings->uxPmpConfigRegMask[portGET_PMPCFG_IDX(portSTACK_REGION_START)] += 
+            xPMPSettings->uxPmpConfigRegMask[portGET_PMPCFG_IDX(portSTACK_REGION_START)] +=
                     ((UBaseType_t)0xFF << portPMPCFG_BIT_SHIFT(portSTACK_REGION_START));
 
             /* Config stack end address and TOR */
             uxBaseAddressChecked = 0;
             lResult = addr_modifier (xPmpInfo.granularity,
-                                    (size_t) pxBottomOfStack + ( size_t ) ulStackDepth * sizeof( StackType_t ), 
+                                    (size_t) pxBottomOfStack + ( size_t ) ulStackDepth * sizeof( StackType_t ),
                                     &uxBaseAddressChecked);
 			#if( configASSERT_DEFINED == 1 )
 			{
@@ -837,7 +836,7 @@ void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xPMPSettings,
                     (portPMP_REGION_ADDR_MATCH_TOR)) <<
                     portPMPCFG_BIT_SHIFT(portSTACK_REGION_END));
 
-            xPMPSettings->uxPmpConfigRegMask[portGET_PMPCFG_IDX(portSTACK_REGION_END)] += 
+            xPMPSettings->uxPmpConfigRegMask[portGET_PMPCFG_IDX(portSTACK_REGION_END)] +=
                 ((UBaseType_t)0xFF << portPMPCFG_BIT_SHIFT(portSTACK_REGION_END));
 		}
 
@@ -853,14 +852,14 @@ void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xPMPSettings,
 					((UBaseType_t)( xRegions[ lIndex ].ulParameters ) <<
 					portPMPCFG_BIT_SHIFT(portSTACK_REGION_START + ul));
 
-				xPMPSettings->uxPmpConfigRegMask[portGET_PMPCFG_IDX(portSTACK_REGION_START + ul)] += 
+				xPMPSettings->uxPmpConfigRegMask[portGET_PMPCFG_IDX(portSTACK_REGION_START + ul)] +=
 					((UBaseType_t)0xFF << portPMPCFG_BIT_SHIFT(portSTACK_REGION_START + ul));
 			}
 			else
 			{
 				/* Invalidate the region. */
 				xPMPSettings->uxRegionBaseAddress[ul] = 0UL;
-                xPMPSettings->uxPmpConfigRegMask[portGET_PMPCFG_IDX(portSTACK_REGION_START + ul)] += 
+                xPMPSettings->uxPmpConfigRegMask[portGET_PMPCFG_IDX(portSTACK_REGION_START + ul)] +=
                     ((UBaseType_t)0xFF << portPMPCFG_BIT_SHIFT(portSTACK_REGION_START + ul));
 			}
 
@@ -897,7 +896,7 @@ __attribute__((naked)) void vPortUpdatePrivilegeStatus( UBaseType_t status ) PRI
         );
 	#endif /* if ( portUSING_MPU_WRAPPERS == 1 ) */
 
- 	__asm__ __volatile__ ( 
+ 	__asm__ __volatile__ (
         "	ret 		\n"
         :::
 	);
@@ -920,10 +919,10 @@ StackType_t * pxPortInitialiseStack( StackType_t * pxTopOfStack,
 
 	/* Generate the value to set in mstatus. */
 	#if( portUSING_MPU_WRAPPERS == 1 )
-		/** 
+		/**
 		 * Generate the value:
-		 * - 0x80   (MPIE set and MPP = usermode) if run in unprivilege mode (xRunPrivileged == 0). 
-		 * - 0x1880 (MPIE set and MPP = machinemode) if run in privilege mode (xRunPrivileged != 0). 
+		 * - 0x80   (MPIE set and MPP = usermode) if run in unprivilege mode (xRunPrivileged == 0).
+		 * - 0x1880 (MPIE set and MPP = machinemode) if run in privilege mode (xRunPrivileged != 0).
 		 */
 		__asm__ __volatile__ (
 			"	csrr t0, mstatus	\n"		/* Obtain current mstatus value. */
