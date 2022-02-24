@@ -245,12 +245,10 @@ definitions. */
     /* get FS field from mstatus */
     li t0, MSTATUS_FS
     and t0, t1, t0
-    li t2, MSTATUS_FS_OFF
-    beq t2, t0, 1f
-    /* FS != off */
-    csrs mstatus, t0
-    /* Remove space added for additional fpu registers. */
-    addi sp, sp, portasmFPU_CONTEXT_WORDSIZE
+    li t2, MSTATUS_FS_DIRTY
+    bne t2, t0, 1f
+     /* FS == dirty */
+    csrs    mstatus, t0
     load_fpu  f0,  PORT_CONTEXT_fpuOFFSET(0)(sp)	/* f0(ft0)		FP temporary register */
     load_fpu  f1,  PORT_CONTEXT_fpuOFFSET(1)(sp)	/* f1(ft1)		FP temporary register */
     load_fpu  f2,  PORT_CONTEXT_fpuOFFSET(2)(sp)	/* f2(ft2)		FP temporary register */
@@ -288,11 +286,14 @@ definitions. */
     load_fpu  f29,  PORT_CONTEXT_fpuOFFSET(29)(sp)	/* f29(ft9)		FP temporary register */
     load_fpu  f30,  PORT_CONTEXT_fpuOFFSET(30)(sp)	/* f30(ft10)	FP temporary register */
     load_fpu  f31,  PORT_CONTEXT_fpuOFFSET(31)(sp)	/* f31(ft11)	FP temporary register */
+    /* Remove space added for additional fpu registers. */
+    addi sp, sp, portasmFPU_CONTEXT_WORDSIZE
 
     /* must set FS to clean */
-    csrc 	mstatus, t0
-    li 	t1, MSTATUS_FS_CLEAN
-    csrs	mstatus, t1
+    li 	t0, ~MSTATUS_FS_CLEAN
+    and t1, t0, t1
+    /* store it before restore mstatus in portRESTORE_BaseReg */
+    store_x  t1, PORT_CONTEXT_mstatusOFFSET(a0)
 1:
     .endm
 /*************************************************************/
