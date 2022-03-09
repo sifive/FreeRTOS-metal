@@ -102,13 +102,15 @@
     #define MSTATUS_FS_DIRTY     0x00006000
 
     #if __riscv_flen == 32
+        #define fmv_fpu   fmv.w.x
         #define store_fpu fsw
-        #define load_fpu flw
+        #define load_fpu  flw
     #endif /* __riscv_flen == 32 */
 
     #if __riscv_flen == 64
+        #define fmv_fpu   fmv.d.x
         #define store_fpu fsd
-        #define load_fpu fld
+        #define load_fpu  fld
     #endif /* __riscv_flen == 64 */
 
     #define portasmFPU_CONTEXT_SIZE			(32)
@@ -152,6 +154,7 @@ definitions. */
 .global xPortMoveISRStackTop
 .global xPortRestoreBeforeFirstTask
 .global pxPortAsmInitialiseStack
+.global prvSetupFPU
 
 .extern pxCurrentTCB
 .extern vTaskSwitchContext
@@ -295,6 +298,11 @@ definitions. */
     /* store it before restore mstatus in portRESTORE_BaseReg */
     store_x  t1, PORT_CONTEXT_mstatusOFFSET(a0)
 1:
+
+// @todo à completer
+//	#if ( portUSING_MPU_WRAPPERS == 1 )
+//	#endif
+
     .endm
 /*************************************************************/
 
@@ -706,11 +714,11 @@ xPortStartFirstTask:
     load_x  t2, pxCurrentTCB            /* Load pxCurrentTCB. */
     load_x  sp, 0( t2 )				 	/* Read sp from first TCB member. */
 
-#ifdef __riscv_fdiv
-    addi 	a0, sp, portasmFPU_CONTEXT_WORDSIZE
-    addi 	a0, a0, portasmADDITIONAL_CONTEXT_WORDSIZE
-    portRESTORE_FpuReg
-#endif /* __riscv_fdiv */
+# #ifdef __riscv_fdiv
+#     addi 	a0, sp, portasmFPU_CONTEXT_WORDSIZE
+#     addi 	a0, a0, portasmADDITIONAL_CONTEXT_WORDSIZE
+#     portRESTORE_FpuReg
+# #endif /* __riscv_fdiv */
 
     portasmRESTORE_ADDITIONAL_REGISTERS
 
@@ -791,19 +799,19 @@ chip_specific_stack_frame:				/* First add any chip specific registers to the st
     j chip_specific_stack_frame			/* Until no more chip specific registers. */
 1:
 
-    #ifdef __riscv_fdiv
-        /* Make room for the fpu registers. */
-        /* Here we use the memory space needed for all fpu registers instead of using the number of fpu registers */
-        /* Thanks to it we usually manage any xxbits core with yybits fpu */
-        addi t0, x0, portasmFPU_CONTEXT_WORDSIZE
-    fpu_specific_stack_frame:
-        beq t0, x0, 1f						/* No more space is needed. */
-        addi t2, t2, -portWORD_SIZE
-        store_x x0, 0(t2)					/* Give an initial value of zero. */
-        addi t0, t0, -portWORD_SIZE			/* Decrement the count space remaining. */
-        j fpu_specific_stack_frame			/* Until no more space is needed. */
-    1:
-    #endif /* __riscv_fdiv */
+    # #ifdef __riscv_fdiv
+    #     /* Make room for the fpu registers. */
+    #     /* Here we use the memory space needed for all fpu registers instead of using the number of fpu registers */
+    #     /* Thanks to it we usually manage any xxbits core with yybits fpu */
+    #     addi t0, x0, portasmFPU_CONTEXT_WORDSIZE
+    # fpu_specific_stack_frame:
+    #     beq t0, x0, 1f						/* No more space is needed. */
+    #     addi t2, t2, -portWORD_SIZE
+    #     store_x x0, 0(t2)					/* Give an initial value of zero. */
+    #     addi t0, t0, -portWORD_SIZE			/* Decrement the count space remaining. */
+    #     j fpu_specific_stack_frame			/* Until no more space is needed. */
+    # 1:
+    # #endif /* __riscv_fdiv */
 
     mv a0, t2
     ret
@@ -852,6 +860,59 @@ xPortMoveISRStackTop:
     li	a0, 0
 2:
     ret
+/*-----------------------------------------------------------*/
+
+#if( configENABLE_FPU == 1 )
+.align 8
+.type   prvSetupFPU, @function
+prvSetupFPU:
+    csrr    t0, misa      /* Get misa */
+    li      t1, 0x10028	  /* 0x10028 = Q,F,D Quad, Single or Double precission floating point */
+    and     t0, t0, t1
+    beqz    t0, 1f        /* check if Q,F or D is present into misa */
+    csrwi   fcsr, 0       /* Clear Floating-point Control and Status Register */
+    fssr    x0
+    fmv_fpu f0, x0
+    fmv_fpu f1, x0
+    fmv_fpu f2, x0
+    fmv_fpu f3, x0
+    fmv_fpu f4, x0
+    fmv_fpu f5, x0
+    fmv_fpu f6, x0
+    fmv_fpu f7, x0
+    fmv_fpu f8, x0
+    fmv_fpu f9, x0
+    fmv_fpu f10,x0
+    fmv_fpu f11,x0
+    fmv_fpu f12,x0
+    fmv_fpu f13,x0
+    fmv_fpu f14,x0
+    fmv_fpu f15,x0
+#if !(defined(__riscv_zfh) || defined(__riscv_zfhv))
+    fmv_fpu f16,x0
+    fmv_fpu f17,x0
+    fmv_fpu f18,x0
+    fmv_fpu f19,x0
+    fmv_fpu f20,x0
+    fmv_fpu f21,x0
+    fmv_fpu f22,x0
+    fmv_fpu f23,x0
+    fmv_fpu f24,x0
+    fmv_fpu f25,x0
+    fmv_fpu f26,x0
+    fmv_fpu f27,x0
+    fmv_fpu f28,x0
+    fmv_fpu f29,x0
+    fmv_fpu f30,x0
+    fmv_fpu f31,x0
+#endif /* !(defined(__riscv_zfh) || defined(__riscv_zfhv)) */
+    lui     t0, 0x6       /* t0 =  0x6 << 12 */
+    csrc    mstatus, t0   /* Clear FS bits */
+    lui     t0, 0x2       /* t0 =  0x2 << 12 */
+    csrs    mstatus, t0   /* Set FS to initial state */
+1:
+    ret
+#endif /* configENABLE_FPU */
 /*-----------------------------------------------------------*/
 
 /*
